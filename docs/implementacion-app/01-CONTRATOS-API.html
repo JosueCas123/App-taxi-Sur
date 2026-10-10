@@ -1,0 +1,43 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>01-CONTRATOS-API</title><link rel="stylesheet" href="assets/plan.css"></head><body><header><strong>TAXISUR / APP DEL CONDUCTOR</strong><br><a href="ABRIR_AQUI.html">Volver al índice de implementación</a></header><main><h1>Contratos de la app — código auditado el 10/10/2026</h1>
+<p>Base configurable sin credenciales. Rutas completas bajo /api. Authorization: Bearer &lt;token&gt; en todas salvo login y registro. El cliente usa conductorId del JWT y los UUID reales de solicitudes. No se inventan endpoints por cada pantalla.</p>
+<div class="table"><table>
+<tr><th>Método y ruta</th><th>Cuerpo</th><th>Respuesta exitosa</th><th>Módulos</th></tr>
+<tr><td>POST /api/auth/conductor/login</td><td>{telefono,pin}</td><td>200 {token,tokenType,expiresIn}</td><td>M01</td></tr>
+<tr><td>POST /api/conductores</td><td>Registro indicado abajo</td><td>201 ConductorDetalleDto sin JWT</td><td>M02</td></tr>
+<tr><td>GET /api/conductores/:id</td><td>Ninguno</td><td>200 ConductorDetalleDto propio</td><td>M01–M09</td></tr>
+<tr><td>PATCH /api/conductores/:id/jornada</td><td>{accion:&quot;iniciar&quot;} o {accion:&quot;finalizar&quot;}</td><td>200 ConductorDetalleDto</td><td>M03, M08</td></tr>
+<tr><td>PATCH /api/conductores/:id/disponibilidad</td><td>{disponible:boolean}</td><td>200 ConductorDetalleDto</td><td>M03</td></tr>
+<tr><td>POST /api/conductores/:id/ubicacion</td><td>{latitud:number,longitud:number}</td><td>201 UbicacionDto</td><td>M04</td></tr>
+<tr><td>GET /api/conductores/:id/solicitud-activa</td><td>Ninguno</td><td>200 SolicitudDetalleDto o null</td><td>M05–M09</td></tr>
+<tr><td>GET /api/conductores/:id/eventos</td><td>Ninguno</td><td>200 text/event-stream</td><td>M05</td></tr>
+<tr><td>GET /api/solicitudes/:id</td><td>Ninguno</td><td>200 SolicitudDetalleDto si corresponde al conductor</td><td>M05–M07</td></tr>
+<tr><td>POST /api/solicitudes/:id/responder</td><td>{acepta:boolean}</td><td>200 SolicitudDto</td><td>M06</td></tr>
+<tr><td>POST /api/solicitudes/:id/finalizar</td><td>{} o sin cuerpo</td><td>200 SolicitudDto</td><td>M07</td></tr>
+<tr><td>GET /api/configuracion</td><td>Ninguno</td><td>200 ConfiguracionDto; uso opcional</td><td>M08</td></tr>
+</table></div>
+<h2>Registro</h2>
+<pre><code>{
+  &quot;telefono&quot;: &quot;&lt;teléfono&gt;&quot;,
+  &quot;pin&quot;: &quot;&lt;4 a 6 dígitos&gt;&quot;,
+  &quot;nombreCompleto&quot;: &quot;&lt;nombre&gt;&quot;,
+  &quot;cedulaIdentidad&quot;: &quot;&lt;CI&gt;&quot;,
+  &quot;vehiculo&quot;: {
+    &quot;placa&quot;: &quot;&lt;placa&gt;&quot;,
+    &quot;marca&quot;: &quot;&lt;marca&gt;&quot;,
+    &quot;modelo&quot;: &quot;&lt;modelo&gt;&quot;,
+    &quot;color&quot;: &quot;&lt;color&gt;&quot;,
+    &quot;capacidadPasajeros&quot;: 4
+  }
+}</code></pre>
+<p>Teléfono: 1–30 caracteres; nombre: 1–100; CI: 1–50. Placa, marca, modelo y color: 1–30 cada uno. Textos recortados. Capacidad: entero 1–100. PIN: expresión ^\d{4,6}$. Confirmar PIN es validación local: no enviarlo como campo adicional. Los esquemas de registro, ubicación y mutaciones son estrictos.</p>
+<h2>Formas de datos relevantes</h2>
+<ul><li>ConductorDetalleDto: id, usuarioId, telefono, nombreCompleto, cedulaIdentidad, estado, estadoJornada, estadoDisponibilidad, cierreJornadaSolicitado, creadoEn, vehiculo (objeto o null).</li><li>Estado de cuenta: pendiente, aprobado, rechazado, suspendido. Jornada: no_iniciada, activa, finalizada. Disponibilidad: disponible, no_disponible, solicitud_pendiente, en_servicio.</li><li>Vehículo: id, placa, marca, modelo, color, capacidadPasajeros.</li><li>SolicitudDto: id, pasajeroId, conductorAsignadoId nullable, estado, latitudRecogida, longitudRecogida, destino nullable, puntoRecogidaTexto nullable, expiraEn nullable, aceptadaEn nullable, finalizadaEn nullable, creadoEn.</li><li>SolicitudDetalleDto amplía SolicitudDto con pasajero {id,nombre}, conductorAsignado nullable {id,nombreCompleto,vehiculo} y distanciaAproximadaKm nullable. El vehículo anidado aquí no incluye id. No hay teléfono de pasajero.</li><li>UbicacionDto: id como string numérico, latitud, longitud, horaRegistro, esValida. La app envía coordenadas; no define horaRegistro.</li><li>ConfiguracionDto: id, nombreEmpresa, radioMaximoBusquedaKm, telefonoCentroAtencion nullable, actualizadoEn. GET es autenticado, no sirve como fuente pública antes del login.</li></ul>
+<p>Los DTO exitosos son cuerpos directos, sin envoltorio data. No sustituir SolicitudDetalleDto por SolicitudDto: las mutaciones no devuelven pasajero ni distancia. Conservar el detalle ya conocido o volver a consultarlo cuando esté autorizado.</p>
+<h2>SSE</h2>
+<p>Eventos nombrados conectado y actualizado. Datos: {tipo,conductorId,estadoJornada,estadoDisponibilidad,fecha}. No incluye solicitudId, estado de aprobación ni cierreJornadaSolicitado. Incluye comentarios heartbeat y sugerencia retry: 5000.</p>
+<p>Flujo: evento → recuperar perfil y solicitud-activa → resolver pantalla. null significa ausencia de solicitud activa, no confirmación de que una mutación previa terminó bien. No hay replay garantizado ni Last-Event-ID implementado: reconciliar al reconectar.</p>
+<h2>Errores y respuestas inciertas</h2>
+<p>Formato habitual: {error:{code,message}}. 400 entrada; 401 credenciales; 403 permiso/cuenta; 404 recurso ausente; 409 conflicto; 500 servidor. No comparar por message. Jornada/disponibilidad: INVALID_STATE_TRANSITION. Responder/finalizar: ESTADO_INVALIDO. Ubicación puede devolver CONDUCTOR_NO_APROBADO con 403.</p>
+<p>Timeout no prueba que el servidor no haya ejecutado la operación. Desactivar reintento automático de mutaciones; consultar estado antes de repetir. No existe refresh, logout remoto, /me, endpoint de expiración ni actualización de perfil por conductor.</p>
+<h2>Fuente</h2>
+<p>Esquemas, routers, controladores y servicios en backend/src/modules/{auth,conductores,ubicaciones,solicitudes,eventos,configuracion}; el perfil de autenticación está en backend/src/middlewares/auth.ts. Antes de implementar, comparar con el código si hubo cambios posteriores a esta fecha.</p></main></body></html>

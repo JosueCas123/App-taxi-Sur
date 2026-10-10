@@ -1,0 +1,86 @@
+TAXISUR · PROTOTIPO UI DE LA APP DEL CONDUCTOR
+====================================================
+
+1. Descomprime TODO el archivo ZIP.
+2. Abre ABRIR_AQUI.html en Chrome o Microsoft Edge.
+3. Elige una escena o pulsa “Explorar el recorrido”.
+
+No necesita instalación, servidor, npm ni internet.
+Mantén styles.css, app.js y la carpeta assets junto a los HTML.
+Cada pantalla tiene su archivo HTML independiente.
+
+ACCESO DE DEMOSTRACIÓN
+Teléfono: 70000000
+PIN: 1234
+No uses datos personales reales en el prototipo.
+
+QUÉ INCLUYE
+- Bienvenida, login, ayuda con PIN y registro de dos pasos.
+- Registro pendiente, rechazado y cuenta suspendida.
+- Jornada / disponibilidad, ubicación y ubicación desactualizada.
+- Solicitud entrante con contador real de 60 segundos.
+- Aceptar, rechazar, expirar y finalizar servicio con confirmación.
+- Cierre de jornada después de completar el servicio actual.
+- Perfil personal y vehículo en modo de lectura.
+- Estado sin conexión y reintento simulado.
+- Sistema de diseño, tokens y guía de implementación para Expo.
+
+CÓMO PROBAR EL FLUJO
+1. Ingresa con la cuenta ficticia.
+2. Inicia jornada. Todavía no puedes ponerte disponible sin ubicación.
+3. Abre Ubicación y permite el permiso de demostración.
+4. Regresa a Mi jornada y activa Disponible para solicitudes.
+5. Vuelve a “Todas las pantallas” y usa “Simular nueva solicitud”.
+6. Acepta o rechaza antes de que el contador llegue a cero.
+7. Al aceptar, revisa los datos y finaliza el servicio con confirmación.
+
+El contador usa una fecha de vencimiento persistida. Recargar la pantalla
+no reinicia los 60 segundos. Al abrir la escena de solicitud desde el
+índice se prepara expresamente una nueva demostración de 60 segundos.
+
+REGISTRO Y APROBACIÓN
+El registro no aprueba al conductor. Después de enviar los datos, vuelve
+al índice y pulsa “Aprobar registro de prueba”. Esto simula una acción
+externa del administrador. Luego pulsa “Continuar mi demo”.
+El prototipo NO guarda el PIN que escribas durante el registro. El login
+solo admite la cuenta ficticia documentada arriba y abre ese perfil de
+ejemplo. No hay autenticación real ni JWT en este paquete.
+
+ESCENAS Y CONTINUIDAD
+Cada enlace del catálogo con “?vista=1” prepara los datos ficticios para
+esa escena. “Continuar mi demo” conserva el flujo. Las herramientas de
+revisión quedan fuera de la pantalla de la app; no se implementarían
+como acciones del conductor en React Native.
+
+SIMULACIÓN
+No envía solicitudes ni mensajes, no modifica la central, no pide tu GPS,
+no llama APIs y no crea cuentas reales. El estado se guarda en localStorage
+del navegador, bajo una clave exclusiva de este prototipo.
+El reintento de conexión simula una recuperación exitosa.
+La ubicación se actualiza de forma ficticia cada 45 segundos mientras la
+jornada está activa, la página visible y el permiso de demo concedido.
+Las escenas de ubicación vencida requieren una actualización manual.
+Los datos son de ejemplo; nombres, referencias y distancias no representan
+servicios reales ni cálculos geográficos.
+
+DISEÑO Y REACT NATIVE
+La identidad mantiene el azul #111E2F y el amarillo #F6C343 del panel web
+TaxiSur. No corresponde a El Kuchu ni a una plataforma de delivery.
+La app propuesta usa teléfono + PIN, no OTP por SMS.
+No hay teléfono de pasajero, chat, llamadas integradas, navegación GPS,
+pagos, propinas ni calificaciones.
+
+Abre sistema-diseno.html para componentes y criterios visuales.
+Abre guia-expo.html para navegación, integración y contratos pendientes.
+assets/tokens.json contiene los tokens de la UI.
+Las fuentes se resuelven localmente (Manrope si está instalada; Segoe UI
+o Arial como alternativas). No se descargan recursos remotos.
+
+Este entregable es un prototipo visual HTML, NO una app Expo compilada.
+La guía explica los puntos por resolver con el backend antes de producción,
+incluidos autorización de Realtime, lectura del detalle por el conductor
+y contratos de jornada/disponibilidad.
+
+Documentos utilizados: ESPECIFICACION_driver-app.md, REGLAS_DE_NEGOCIO.md,
+MODELO_DE_DATOS.md, ROADMAP_ENDPOINTS.md y el prototipo administrativo TaxiSur.
+Documentación técnica oficial consultada: enlaces en guia-expo.html.

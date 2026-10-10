@@ -1,0 +1,13 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>05-PENDIENTES-BACKEND</title><link rel="stylesheet" href="assets/plan.css"></head><body><header><strong>TAXISUR / APP DEL CONDUCTOR</strong><br><a href="ABRIR_AQUI.html">Volver al índice de implementación</a></header><main><h1>Coordinación con backend y despliegue</h1>
+<p>Estos puntos no vuelven a declarar ausentes los endpoints ya implementados. Son condiciones para validar el flujo completo.</p>
+<div class="table"><table>
+<tr><th>Punto</th><th>Responsable</th><th>Validación de cierre</th></tr>
+<tr><td>SSE debe cerrar/revalidar sesión al expirar JWT o invalidarse identidad</td><td>Backend</td><td>Abrir stream, vencer/revocar identidad y comprobar cese de entrega; reconectar exige credenciales válidas</td></tr>
+<tr><td>Observar estado/errores asíncronos de la suscripción Supabase</td><td>Backend / operación</td><td>Una falla upstream queda visible; conectado HTTP no se presenta como Realtime saludable</td></tr>
+<tr><td>Migraciones de cierreJornadaSolicitado y puntoRecogidaTexto</td><td>Despliegue</td><td>Verificar aplicadas en la base conectada, no solo presentes en carpeta</td></tr>
+<tr><td>Publicación Realtime de public.conductores y credenciales de servidor</td><td>Despliegue</td><td>La asignación llega al stream correcto sin exponer service_role en la app</td></tr>
+<tr><td>ROADMAP menciona rol en JWT; firma actual no lo añade</td><td>Documentación</td><td>Corregir descripción; app usa conductorId y perfil</td></tr>
+<tr><td>Oferta de 60 s depende de reloj local para presentación</td><td>App / backend</td><td>Probar desfase; el servidor rechaza tarde. Si hace falta precisión garantizada, acordar referencia de hora explícita como mejora</td></tr>
+</table></div>
+<p>No ejecutar migraciones ni cambios de producción como parte de la creación de pantallas. Conservar las mejoras opcionales separadas del contrato actual: JWT en registro, refresh, push, background y un reloj servidor explícito no se presuponen implementados.</p>
+<p>La revisión detallada está incluida en referencias/REVISION-ENDPOINTS.md. Los fallos del entorno al ejecutar tests en aquella auditoría no son evidencia de aprobación ni de defectos de negocio.</p></main></body></html>

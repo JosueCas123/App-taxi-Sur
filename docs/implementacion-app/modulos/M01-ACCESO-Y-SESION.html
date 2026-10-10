@@ -1,0 +1,21 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>M01-ACCESO-Y-SESION</title><link rel="stylesheet" href="../assets/plan.css"></head><body><header><strong>TAXISUR / APP DEL CONDUCTOR</strong><br><a href="../ABRIR_AQUI.html">Volver al índice de implementación</a></header><main><h1>M01 — Login, identidad y sesión segura</h1>
+<p><strong>Estado:</strong> por implementar en React Native. <strong>Dependencias:</strong> M00.</p>
+<h2>Objetivo</h2>
+<p>Autenticar con teléfono y PIN, restaurar la sesión y resolver correctamente la identidad del conductor.</p>
+<h2>Pantallas de referencia</h2>
+<ul><li><a href="../referencias-ui/login.html">login.html</a></li><li><a href="../referencias-ui/recuperar-pin.html">recuperar-pin.html</a></li></ul>
+<p>Los HTML son referencias visuales con simulaciones, no componentes nativos ni pruebas de integración.</p>
+<h2>Contratos</h2>
+<p>POST /api/auth/conductor/login; GET /api/conductores/:id.</p>
+<p>Consultar cuerpos y respuestas en <a href="../01-CONTRATOS-API.html">01-CONTRATOS-API.md</a>.</p>
+<h2>Tareas</h2>
+<ol><li>Implementar teléfono y PIN con teclado apropiado, ocultación del PIN, validación y bloqueo de doble envío. Mantener como texto el PIN para preservar ceros iniciales.</li><li>Enviar {telefono,pin}; guardar solo el JWT en SecureStore y mantener la sesión en memoria. No guardar PIN en logs, caché ni almacenamiento.</li><li>Obtener conductorId del claim del JWT y consultar el perfil. sub identifica al usuario y NO sirve como ID del conductor. Si falta conductorId, mostrar una sesión incompatible y solicitar nuevo login; no adivinar un ID.</li><li>Restaurar el token al iniciar; validar exp localmente para UX y confirmar la identidad con la API. Decodificar un JWT en el cliente no reemplaza la verificación del servidor.</li><li>Diferenciar 401 de timeout/sin red. Ante 401 invalidar sesión, cancelar consultas, cerrar SSE y limpiar cachés privadas; permitir volver a entrar y recuperar el servicio activo.</li><li>Recuperar PIN abre ayuda para contactar a administración. Usar un contacto público configurado para la app; GET /api/configuracion requiere autenticación. Si no hay contacto configurado, no inventar un número.</li></ol>
+<h2>Archivos propuestos</h2>
+<ul><li><code>src/features/auth/api.ts</code></li><li><code>src/features/auth/session.ts</code></li><li><code>src/features/auth/token-storage.ts</code></li><li><code>src/features/auth/screens/*</code></li><li><code>src/app/(auth)/*</code></li></ul>
+<p>Las rutas son una propuesta de organización; adaptar si el repositorio ya tiene convenciones.</p>
+<h2>Criterios de aceptación</h2>
+<ul><li>☐ Login correcto conduce al flujo de cuenta, no directamente a disponible.</li><li>☐ Error de credenciales muestra un mensaje genérico sin revelar si el teléfono existe.</li><li>☐ Reinicio restaura una sesión válida; un token vencido solicita login.</li><li>☐ Un timeout conserva la distinción de estado incierto y no borra una sesión válida.</li><li>☐ La ayuda no llama al endpoint administrativo de resetear PIN.</li></ul>
+<h2>Decisiones y límites</h2>
+<p>No existe endpoint de refresh ni logout en el contrato actual. Al expirar la sesión se requiere autenticación otra vez. El claim rol mencionado en el ROADMAP no está incluido en la firma actual: no depender de él.</p>
+<h2>Prompt para comenzar</h2>
+<blockquote>Implementa únicamente M01 — Login, identidad y sesión segura en la app TaxiSur existente. Lee este archivo, 01-CONTRATOS-API.md y 02-ARQUITECTURA.md; comprueba que sus dependencias estén listas. Usa las referencias HTML solo como diseño, conserva las reglas de negocio del backend y no inventes endpoints. Implementa las tareas, verifica los criterios aplicables y entrega un resumen de archivos modificados, pruebas ejecutadas y pendientes. No avances automáticamente al módulo siguiente ni publiques la app.</blockquote></main></body></html>

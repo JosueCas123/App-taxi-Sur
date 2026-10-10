@@ -1,0 +1,28 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>06-PRUEBAS-DE-ACEPTACION</title><link rel="stylesheet" href="assets/plan.css"></head><body><header><strong>TAXISUR / APP DEL CONDUCTOR</strong><br><a href="ABRIR_AQUI.html">Volver al índice de implementación</a></header><main><h1>Matriz de aceptación</h1>
+<p>Estado inicial de todos los casos: <strong>pendiente</strong>. Ejecutar contra el backend real configurado, usando cuentas autorizadas; guardar dispositivo, versión, fecha y evidencia.</p>
+<div class="table"><table>
+<tr><th>ID</th><th>Módulo</th><th>Escenario</th><th>Resultado esperado</th></tr>
+<tr><td>A01</td><td>M01</td><td>Login válido, inválido, token vencido y falta de conductorId</td><td>Ruta y mensaje correctos; nunca usar sub como conductorId</td></tr>
+<tr><td>A02</td><td>M02</td><td>Registro y aprobación desde administración en el backend conectado</td><td>Alta persistida → login → consultar perfil real</td></tr>
+<tr><td>A03</td><td>M02/M07</td><td>Suspender conductor con servicio</td><td>Bloquea nuevas operaciones; permite finalizar el existente</td></tr>
+<tr><td>A04</td><td>M03</td><td>Iniciar jornada sin permiso GPS</td><td>Activa/no disponible; no forzar permiso para iniciar</td></tr>
+<tr><td>A05</td><td>M04</td><td>Permiso denegado y GPS apagado</td><td>Mensajes distintos, ajustes y recuperación</td></tr>
+<tr><td>A06</td><td>M03/M04</td><td>Habilitar disponible sin GPS fresco / con GPS válido</td><td>Primer caso bloqueado; segundo confirmado por API</td></tr>
+<tr><td>A07</td><td>M05</td><td>Asignación real por n8n/admin a conductor elegible</td><td>SSE dispara activa y muestra los datos del backend</td></tr>
+<tr><td>A08</td><td>M05</td><td>Dos conductores, eventos duplicados y reconexión</td><td>Sin fuga entre identidades, stream único y recuperación</td></tr>
+<tr><td>A09</td><td>M06</td><td>Reabrir oferta a los 40 s y dejar vencer</td><td>Usa expiraEn; no reinicia 60 s; no acepta tarde</td></tr>
+<tr><td>A10</td><td>M06</td><td>Rechazar y recibir 403 en detalle desasignado</td><td>Reconcilia activa; no interpreta como sesión expirada</td></tr>
+<tr><td>A11</td><td>M06</td><td>Doble pulsación y timeout tras aceptar</td><td>Una mutación activa; consulta antes de repetir</td></tr>
+<tr><td>A12</td><td>M07</td><td>Timeout después de finalizar en servidor</td><td>Consulta detalle; éxito solo si finalizada confirmado</td></tr>
+<tr><td>A13</td><td>M03/M07</td><td>Pedir fin de jornada durante servicio y completarlo</td><td>Cierre diferido → finalizada/no_disponible</td></tr>
+<tr><td>A14</td><td>M04/M09</td><td>Cinco minutos sin GPS y reconexión después de viaje</td><td>Posición obsoleta visible; no sube muestras antiguas</td></tr>
+<tr><td>A15</td><td>M08</td><td>Salir offline y entrar como otro conductor</td><td>Elimina token/caché; no finge cierre de jornada</td></tr>
+<tr><td>A16</td><td>M05</td><td>Vencer token manteniendo SSE abierto</td><td>App cierra; backend también debe aplicar ciclo de sesión</td></tr>
+<tr><td>A17</td><td>M05/M10</td><td>Supabase sin publicación o canal caído</td><td>No certificar Realtime con solo conectado/heartbeat</td></tr>
+<tr><td>A18</td><td>M09</td><td>Reloj adelantado/atrasado, app bloqueada y vuelta a foreground</td><td>Reconciliación y expiración del servidor prevalecen</td></tr>
+<tr><td>A19</td><td>M09</td><td>Texto ampliado, lector de pantalla y teclado</td><td>Controles legibles, foco y navegación correctos</td></tr>
+<tr><td>A20</td><td>M10</td><td>Inspeccionar entrega final y flujo de las 16 pantallas</td><td>Sin simuladores, PIN, IDs demo ni secretos en artefactos</td></tr>
+</table></div>
+<h2>Registro por ejecución</h2>
+<p>Copiar por caso: ID, versión/commit app, versión backend, dispositivo/SO, fecha, pasos, resultado observado, aprobado/fallido/no ejecutado, evidencia y defecto asociado.</p>
+<p>Pruebas de integración del flujo contra el backend real del sistema con las cuentas y registros que estén autorizados: contador basado en expiraEn, conductor suspendido con servicio, limpieza de identidad, timeout de mutaciones. Pruebas en dispositivo para SSE, permisos, ciclo de vida y recuperación. No sustituir respuestas del backend por fixtures o mocks en la ejecución de la app.</p></main></body></html>

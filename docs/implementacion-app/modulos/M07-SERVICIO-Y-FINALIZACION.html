@@ -1,0 +1,21 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>M07-SERVICIO-Y-FINALIZACION</title><link rel="stylesheet" href="../assets/plan.css"></head><body><header><strong>TAXISUR / APP DEL CONDUCTOR</strong><br><a href="../ABRIR_AQUI.html">Volver al índice de implementación</a></header><main><h1>M07 — Servicio activo y finalización</h1>
+<p><strong>Estado:</strong> por implementar en React Native. <strong>Dependencias:</strong> M03 y M05–M06.</p>
+<h2>Objetivo</h2>
+<p>Completar el servicio asignado y conservar coherencia incluso si falla la respuesta de red.</p>
+<h2>Pantallas de referencia</h2>
+<ul><li><a href="../referencias-ui/en-servicio.html">en-servicio.html</a></li><li><a href="../referencias-ui/servicio-finalizado.html">servicio-finalizado.html</a></li></ul>
+<p>Los HTML son referencias visuales con simulaciones, no componentes nativos ni pruebas de integración.</p>
+<h2>Contratos</h2>
+<p>GET /api/conductores/:id/solicitud-activa; GET /api/solicitudes/:id; POST /api/solicitudes/:id/finalizar; GET /api/conductores/:id.</p>
+<p>Consultar cuerpos y respuestas en <a href="../01-CONTRATOS-API.html">01-CONTRATOS-API.md</a>.</p>
+<h2>Tareas</h2>
+<ol><li>Mostrar servicio en curso con UUID real abreviado solo para presentación, pasajero y recogida. Conservar el UUID completo para la API.</li><li>Confirmar la intención de finalizar y enviar {} o ausencia de cuerpo a finalizar. No enviar campos de pago, ubicación o calificación inexistentes.</li><li>Mostrar éxito solo tras respuesta finalizada o consulta posterior que confirme finalizada. Luego actualizar el perfil para reflejar cierreJornadaSolicitado consumido y disponibilidad.</li><li>Si se pierde la respuesta, consultar el detalle por el UUID conocido y la solicitud activa. null en solicitud-activa no demuestra por sí solo que el servicio terminó correctamente.</li><li>Si el detalle devuelve 403/404 y no se puede confirmar el resultado, mostrar estado no verificable y recuperación/ayuda. No inventar una finalización offline.</li><li>Permitir finalizar un servicio existente tras suspensión, con aviso y sin habilitar nueva jornada/disponibilidad. Al regresar a la app recuperar el servicio antes de aplicar una pantalla de bloqueo general.</li></ol>
+<h2>Archivos propuestos</h2>
+<ul><li><code>src/features/service/screens/*</code></li><li><code>src/features/service/use-finish-service.ts</code></li><li><code>src/features/service/resolve-finish-result.ts</code></li></ul>
+<p>Las rutas son una propuesta de organización; adaptar si el repositorio ya tiene convenciones.</p>
+<h2>Criterios de aceptación</h2>
+<ul><li>☐ Finalizar muestra éxito con estado confirmado por backend.</li><li>☐ Timeout después de un commit se reconcilia sin volver a finalizar ciegamente.</li><li>☐ Cierre diferido termina en jornada finalizada/no_disponible.</li><li>☐ Una suspensión no deja atrapado al conductor fuera de su servicio existente.</li><li>☐ Reinicio durante servicio recupera el mismo UUID.</li></ul>
+<h2>Decisiones y límites</h2>
+<p>Finalizar repetidamente no garantiza éxito idempotente: puede devolver 409. El módulo debe reconciliar en lugar de interpretar ese código como una finalización confirmada.</p>
+<h2>Prompt para comenzar</h2>
+<blockquote>Implementa únicamente M07 — Servicio activo y finalización en la app TaxiSur existente. Lee este archivo, 01-CONTRATOS-API.md y 02-ARQUITECTURA.md; comprueba que sus dependencias estén listas. Usa las referencias HTML solo como diseño, conserva las reglas de negocio del backend y no inventes endpoints. Implementa las tareas, verifica los criterios aplicables y entrega un resumen de archivos modificados, pruebas ejecutadas y pendientes. No avances automáticamente al módulo siguiente ni publiques la app.</blockquote></main></body></html>

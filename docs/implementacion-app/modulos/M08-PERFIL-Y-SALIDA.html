@@ -1,0 +1,21 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>M08-PERFIL-Y-SALIDA</title><link rel="stylesheet" href="../assets/plan.css"></head><body><header><strong>TAXISUR / APP DEL CONDUCTOR</strong><br><a href="../ABRIR_AQUI.html">Volver al índice de implementación</a></header><main><h1>M08 — Perfil, ayuda y cierre de sesión</h1>
+<p><strong>Estado:</strong> por implementar en React Native. <strong>Dependencias:</strong> M01–M07.</p>
+<h2>Objetivo</h2>
+<p>Mostrar los datos autorizados y separar el cierre de sesión del fin de jornada.</p>
+<h2>Pantallas de referencia</h2>
+<ul><li><a href="../referencias-ui/perfil.html">perfil.html</a></li><li><a href="../referencias-ui/recuperar-pin.html">recuperar-pin.html</a></li></ul>
+<p>Los HTML son referencias visuales con simulaciones, no componentes nativos ni pruebas de integración.</p>
+<h2>Contratos</h2>
+<p>GET /api/conductores/:id; GET /api/configuracion (opcional, autenticado); PATCH /api/conductores/:id/jornada para cierre operativo cuando proceda.</p>
+<p>Consultar cuerpos y respuestas en <a href="../01-CONTRATOS-API.html">01-CONTRATOS-API.md</a>.</p>
+<h2>Tareas</h2>
+<ol><li>Presentar nombre, CI, teléfono, estados y vehículo en modo solo lectura. Si vehiculo es null, mostrar ausencia de datos sin inventarlos.</li><li>Para ayuda autenticada usar telefonoCentroAtencion si está disponible en configuración. Manejar null; no confundir ese teléfono con el del pasajero.</li><li>Como decisión UX, el botón normal de salir debe advertir si hay jornada o servicio pendiente. Sin servicio, ofrecer finalizar jornada y salir después de confirmarlo.</li><li>Si existe oferta, resolverla/reconciliar antes del cierre operativo. Si existe servicio, ofrecer permanecer y terminarlo; no ejecutar finalizar servicio desde logout.</li><li>Ofrecer una salida local explícita para retirar credenciales incluso offline, con aviso de que no cierra la jornada ni termina el servicio en servidor. Una expiración de sesión tampoco cambia esos estados.</li><li>En cualquier salida local detener SSE y GPS, cancelar consultas, eliminar token y caché privada. En siguiente login recuperar el estado operativo pendiente.</li></ol>
+<h2>Archivos propuestos</h2>
+<ul><li><code>src/features/profile/screens/ProfileScreen.tsx</code></li><li><code>src/features/profile/use-support-contact.ts</code></li><li><code>src/features/auth/sign-out.ts</code></li></ul>
+<p>Las rutas son una propuesta de organización; adaptar si el repositorio ya tiene convenciones.</p>
+<h2>Criterios de aceptación</h2>
+<ul><li>☐ No hay edición de datos ni llamadas a endpoints administrativos.</li><li>☐ Cerrar sesión no envía finalizar servicio.</li><li>☐ Salida local offline elimina datos sensibles y explica la jornada pendiente.</li><li>☐ Al entrar con otra cuenta no se muestran datos del conductor anterior.</li><li>☐ El contacto ausente no produce enlace inválido.</li></ul>
+<h2>Decisiones y límites</h2>
+<p>La política de salida operativa es una propuesta UX del plan, no una restricción nueva del backend. No hay endpoint de logout que revoque JWT actualmente.</p>
+<h2>Prompt para comenzar</h2>
+<blockquote>Implementa únicamente M08 — Perfil, ayuda y cierre de sesión en la app TaxiSur existente. Lee este archivo, 01-CONTRATOS-API.md y 02-ARQUITECTURA.md; comprueba que sus dependencias estén listas. Usa las referencias HTML solo como diseño, conserva las reglas de negocio del backend y no inventes endpoints. Implementa las tareas, verifica los criterios aplicables y entrega un resumen de archivos modificados, pruebas ejecutadas y pendientes. No avances automáticamente al módulo siguiente ni publiques la app.</blockquote></main></body></html>

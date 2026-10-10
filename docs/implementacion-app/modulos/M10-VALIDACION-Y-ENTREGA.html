@@ -1,0 +1,21 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>M10-VALIDACION-Y-ENTREGA</title><link rel="stylesheet" href="../assets/plan.css"></head><body><header><strong>TAXISUR / APP DEL CONDUCTOR</strong><br><a href="../ABRIR_AQUI.html">Volver al índice de implementación</a></header><main><h1>M10 — Integración, pruebas y compilación de prueba</h1>
+<p><strong>Estado:</strong> por implementar en React Native. <strong>Dependencias:</strong> M00–M09 y condiciones de backend comprobadas.</p>
+<h2>Objetivo</h2>
+<p>Demostrar que las pantallas nativas funcionan con el backend y entregar una compilación reproducible.</p>
+<h2>Pantallas de referencia</h2>
+<ul><li>Todas las pantallas de la matriz.</li></ul>
+<p>Los HTML son referencias visuales con simulaciones, no componentes nativos ni pruebas de integración.</p>
+<h2>Contratos</h2>
+<p>Todos los contratos de 01-CONTRATOS-API.md; el backend real configurado para la app.</p>
+<p>Consultar cuerpos y respuestas en <a href="../01-CONTRATOS-API.html">01-CONTRATOS-API.md</a>.</p>
+<h2>Tareas</h2>
+<ol><li>Ejecutar TypeScript y lint con scripts disponibles; registrar comandos y resultados. Añadir pruebas focalizadas de guards, contador, reconciliación y limpieza de sesión.</li><li>Probar el recorrido completo con las cuentas autorizadas y el backend real configurado: alta, aprobación administrativa, login, jornada, GPS, disponible, asignación, aceptar, finalizar y cierre.</li><li>Usar la matriz 06-PRUEBAS-DE-ACEPTACION.md y anotar resultado real/evidencia por caso. No marcar aprobadas pruebas no ejecutadas.</li><li>Verificar SSE end-to-end, migraciones y publicación de conductores. La integración de la app debe probarse contra el backend real configurado y conectado con el sistema; una respuesta simulada no acredita que Supabase esté configurado.</li><li>Probar Android físico: permisos, retorno de ajustes, cierre/reapertura, pantalla bloqueada, red intermitente y vencimiento de sesión. Si iOS forma parte de la entrega, repetir allí y registrar lo pendiente.</li><li>Generar una compilación ejecutable con configuración documentada. Entregar guía de instalación, versión del backend conectado y limitaciones de foreground.</li></ol>
+<h2>Archivos propuestos</h2>
+<ul><li><code>tests/*</code></li><li><code>docs/validacion-app.md</code></li><li><code>docs/instalacion-app.md</code></li><li><code>Configuración de compilación acorde al proyecto</code></li></ul>
+<p>Las rutas son una propuesta de organización; adaptar si el repositorio ya tiene convenciones.</p>
+<h2>Criterios de aceptación</h2>
+<ul><li>☐ Cada una de las 16 pantallas tiene ruta nativa, datos reales o un estado vacío/pendiente explícito.</li><li>☐ El flujo crítico y los casos negativos tienen evidencia en dispositivo.</li><li>☐ Los pendientes de SSE se resuelven o se documentan como impedimento para certificar la operación.</li><li>☐ No se atribuye capacidad de segundo plano o push a una implementación foreground.</li><li>☐ La entrega identifica commit/versión y resultados; no contiene claves privadas.</li></ul>
+<h2>Decisiones y límites</h2>
+<p>Este paquete define trabajo por implementar. La auditoría anterior aprobó tsc del backend, pero no pudo completar su suite por restricciones del entorno. No reutilizar ese resultado como evidencia de la app.</p>
+<h2>Prompt para comenzar</h2>
+<blockquote>Implementa únicamente M10 — Integración, pruebas y compilación de prueba en la app TaxiSur existente. Lee este archivo, 01-CONTRATOS-API.md y 02-ARQUITECTURA.md; comprueba que sus dependencias estén listas. Usa las referencias HTML solo como diseño, conserva las reglas de negocio del backend y no inventes endpoints. Implementa las tareas, verifica los criterios aplicables y entrega un resumen de archivos modificados, pruebas ejecutadas y pendientes. No avances automáticamente al módulo siguiente ni publiques la app.</blockquote></main></body></html>
