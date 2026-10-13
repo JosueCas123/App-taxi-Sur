@@ -1,0 +1,27 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "references": {
+    "R-G": {
+      "path": "../docs",
+      "description": "Reglas de negocio del sistema para la creacion de usuarios y sus roles "
+    }
+  },
+  "mcp": {
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp/oauth",
+      "enabled": true
+    }
+  },
+  "command": {
+    "spec": {
+      "description": "Crea especificaciones de pantallas y funcionalidades",
+      "template": "Carga y sigue la skill spec en .agents/skills/spec/SKILL.md.\n\nFeature: $ARGUMENTS"
+    },
+  
+    "spec-impl": {
+      "description": "Implementa especificaciones de pantallas y funcionalidades",
+      "template": "Carga y sigue la skill spec-impl en .agents/skills/spec-impl/SKILL.md.\n\nFeature: $ARGUMENTS"
+    }
+  }
+}

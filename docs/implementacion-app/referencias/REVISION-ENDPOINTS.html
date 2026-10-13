@@ -1,0 +1,60 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>REVISION-ENDPOINTS</title><link rel="stylesheet" href="../assets/plan.css"></head><body><header><strong>TAXISUR / APP DEL CONDUCTOR</strong><br><a href="../ABRIR_AQUI.html">Volver al índice de implementación</a></header><main><h1>TaxiSur — Revisión de endpoints para la app del conductor</h1>
+<p>Fecha: 10 de octubre de 2026.</p>
+<h2>Resultado</h2>
+<p><strong>Sí: los cuatro endpoints que faltaban ya están implementados en el backend local.</strong> Se revisaron rutas, controladores, servicios, validaciones, autenticación y pruebas existentes, además del ROADMAP_ENDPOINTS.md. El backend contiene 34 rutas HTTP bajo <code>/api</code>, más <code>/health</code>.</p>
+<p>Esto confirma implementación en código. No certifica el despliegue, la aplicación de migraciones en Supabase ni la integración de las pantallas en React Native. La app <code>app-taxi/app-taxi/App.tsx</code> continúa mostrando la pantalla inicial de Expo.</p>
+<h2>Rutas incorporadas</h2>
+<div class="table"><table>
+<tr><th>Endpoint</th><th>Resultado de la revisión</th><th>Uso en la app</th></tr>
+<tr><td><code>PATCH /api/conductores/:id/jornada</code></td><td>Implementado. Valida identidad, propiedad, estado y asignaciones dentro de transacción con bloqueo.</td><td>Iniciar jornada y solicitar su cierre.</td></tr>
+<tr><td><code>PATCH /api/conductores/:id/disponibilidad</code></td><td>Implementado. Para activarse exige cuenta aprobada, jornada activa, ausencia de asignaciones incompatibles y GPS válido reciente.</td><td>Interruptor Disponible / No disponible.</td></tr>
+<tr><td><code>GET /api/conductores/:id/solicitud-activa</code></td><td>Implementado. Comprueba propiedad; también permite administración y n8n. Devuelve el detalle de la solicitud o <code>null</code>.</td><td>Recuperar una oferta o servicio al abrir o reconectar la app.</td></tr>
+<tr><td><code>GET /api/conductores/:id/eventos</code></td><td>Implementado. Stream SSE exclusivo del conductor propietario, con evento inicial y cambios recibidos desde Supabase por el backend.</td><td>Avisar cambios y disparar la recuperación del estado actual.</td></tr>
+</table></div>
+<p>Los tres primeros están en <code>backend/src/modules/conductores/conductores.router.ts</code>; SSE está en <code>backend/src/modules/eventos/eventos.router.ts</code>. Todos están montados en <code>backend/src/app.ts</code>.</p>
+<h2>Correcciones anteriores verificadas</h2>
+<div class="table"><table>
+<tr><th>Punto</th><th>Estado actual</th></tr>
+<tr><td>Identificar al conductor después del login</td><td>El JWT incorpora <code>conductorId</code> cuando existe el conductor asociado. <code>sub</code> sigue siendo el ID del usuario. No hace falta agregar <code>/me</code> para resolver este punto.</td></tr>
+<tr><td>Leer el detalle de la solicitud desde la app</td><td><code>GET /api/solicitudes/:id</code> acepta autenticación del conductor y verifica que sea el asignado.</td></tr>
+<tr><td>Aceptar una oferta después del vencimiento</td><td>Corregido en código: se consulta el reloj después de adquirir los bloqueos y la actualización exige <code>expiraEn &gt; now</code>. No depende únicamente de que el job haya procesado el vencimiento.</td></tr>
+<tr><td>Recuperar el servicio después de cerrar la app</td><td>Resuelto por <code>solicitud-activa</code>.</td></tr>
+<tr><td>Texto de recogida y distancia</td><td>El detalle incluye <code>puntoRecogidaTexto</code> y <code>distanciaAproximadaKm</code>. La distancia puede ser <code>null</code> y es geográfica, no una ruta vial ni una estimación de tiempo.</td></tr>
+<tr><td>Cerrar jornada durante un servicio</td><td>Se guarda <code>cierreJornadaSolicitado</code>; al finalizar el servicio se cierra la jornada y se libera al conductor como no disponible.</td></tr>
+<tr><td>Suspensión durante un servicio</td><td>Las transiciones preservan la asignación activa; el conductor puede finalizarla sin volver a quedar disponible si está suspendido.</td></tr>
+<tr><td>Notificaciones a la app</td><td>Existe el puente Supabase → backend → SSE autenticado. La app no debe recibir la clave <code>service_role</code>.</td></tr>
+<tr><td>Registro sin token</td><td>Sigue devolviendo el alta sin JWT. Es compatible con pedir login después del registro; el token en el registro continúa siendo opcional.</td></tr>
+<tr><td>Implementación móvil</td><td>Pendiente: existen prototipos HTML, pero el proyecto Expo inspeccionado todavía contiene la pantalla inicial.</td></tr>
+</table></div>
+<h2>Observaciones que permanecen</h2>
+<h3>1. El stream SSE no finaliza al vencer la sesión</h3>
+<p>La autenticación verifica el JWT al abrir la petición. Después, <code>eventos.controller.ts</code> registra la conexión y solo la retira al cerrarse; <code>eventos.service.ts</code> continúa enviando cambios y heartbeats. No se encontró temporizador asociado a <code>exp</code> ni revalidación de la identidad durante la conexión.</p>
+<p><strong>Consecuencia:</strong> una conexión que ya estaba abierta puede seguir recibiendo estados del conductor después del vencimiento del token o de la eliminación del usuario. Las nuevas peticiones sí pasan otra vez por autenticación.</p>
+<p><strong>Ajuste recomendado:</strong> cerrar el stream al vencer la sesión y definir cómo revocar conexiones existentes cuando se invalide la identidad. La app debe renovar la sesión mediante el flujo disponible y reconectar con credenciales válidas.</p>
+<p>Evidencia: <code>backend/src/middlewares/auth.ts</code>, función <code>resolveByJwt</code>; <code>backend/src/modules/eventos/eventos.controller.ts</code>, registro y limpieza de conexión; <code>backend/src/modules/eventos/eventos.service.ts</code>, registro, heartbeat y envío de cambios. Hallazgo de inspección estática, no de una prueba de expiración de larga duración.</p>
+<h3>2. «Conectado» no garantiza que Realtime esté operativo</h3>
+<p>El controlador emite el evento inicial independientemente de la suscripción de Supabase. La llamada <code>canal.subscribe()</code> no registra un callback para observar el estado o los errores asíncronos del canal. En desarrollo, si faltan las credenciales, el servicio informa que solo emitirá snapshot y heartbeats; en producción la validación de configuración exige ambas credenciales.</p>
+<p><strong>Consecuencia:</strong> la app puede mantener un stream abierto sin recibir las nuevas asignaciones si falla la suscripción o falta habilitar la tabla en Realtime.</p>
+<p><strong>Antes de dar por validado el despliegue:</strong> comprobar una asignación real y su recepción en SSE, verificar la publicación de <code>public.conductores</code> y observar el estado de la suscripción. El heartbeat demuestra que el canal HTTP sigue abierto, no que Supabase esté entregando cambios.</p>
+<p>Evidencia: <code>backend/src/modules/eventos/eventos.service.ts</code>, función <code>iniciarEventosRealtime</code>, y evento inicial en <code>eventos.controller.ts</code>.</p>
+<h3>3. Ajustes del contrato documentado para implementar la app</h3>
+<ul><li>El ROADMAP menciona <code>rol: &quot;conductor&quot;</code> dentro del JWT. La firma actual añade <code>conductorId</code>, pero no <code>rol</code>; el middleware obtiene el rol desde la base de datos. No programar el cliente suponiendo ese claim.</li><li>El evento SSE contiene <code>conductorId</code>, <code>estadoJornada</code>, <code>estadoDisponibilidad</code>, <code>tipo</code> y <code>fecha</code>; no contiene <code>solicitudId</code>. Al recibir una oferta, llamar primero a <code>GET /api/conductores/:id/solicitud-activa</code>. Su respuesta permite conocer el ID y el detalle de la solicitud.</li><li><code>solicitud-activa</code> responde directamente con un objeto de detalle o con <code>null</code>, no con <code>{ solicitud: ... }</code>.</li><li>Jornada y disponibilidad responden directamente con el detalle actualizado del conductor. Usar ese resultado para actualizar la pantalla.</li><li>Una oferta vencida puede seguir apareciendo como activa hasta que el job procese el vencimiento. La UI debe respetar <code>expiraEn</code>, desactivar la aceptación vencida y reconciliar el estado. El endpoint de respuesta ya protege contra la aceptación tardía.</li></ul>
+<h2>Contratos mínimos para conectar las pantallas</h2>
+<pre><code>PATCH /api/conductores/{conductorId}/jornada
+Authorization: Bearer &lt;token&gt;
+Content-Type: application/json
+
+{&quot;accion&quot;:&quot;iniciar&quot;}</code></pre>
+<p>Para finalizar, enviar <code>{&quot;accion&quot;:&quot;finalizar&quot;}</code>. Si existe un servicio en curso, la pantalla debe mostrar el cierre solicitado a partir de <code>cierreJornadaSolicitado</code>; no mostrar la jornada como cerrada antes de recibir ese estado del servidor.</p>
+<pre><code>PATCH /api/conductores/{conductorId}/disponibilidad
+Authorization: Bearer &lt;token&gt;
+Content-Type: application/json
+
+{&quot;disponible&quot;:true}</code></pre>
+<p>Para pasar a no disponible, enviar <code>{&quot;disponible&quot;:false}</code>. Gestionar los conflictos HTTP 409 sin cambiar optimistamente a un estado que el servidor rechazó.</p>
+<p>Secuencia de arranque: login → obtener <code>conductorId</code> del JWT → consultar perfil → abrir SSE → recuperar solicitud activa → mostrar la pantalla correspondiente. También reconciliar al recibir el evento inicial, tras reconectar y al volver al primer plano. Evitar que una respuesta antigua sobrescriba otra más reciente.</p>
+<h2>Verificación ejecutada y límites</h2>
+<ul><li>Recuento del código: <strong>34 rutas <code>/api</code></strong>, además de <code>/health</code>.</li><li>TypeScript: <strong><code>tsc --noEmit --pretty false</code> finalizó con código 0</strong> sobre una copia del backend actual.</li><li>Se intentó ejecutar la suite unitaria actual en una copia aislada, sin <code>.env</code> ni acceso a una base real. <strong>No se pudo completar satisfactoriamente</strong>: hubo errores <code>EACCES</code> en conexiones HTTP locales y errores <code>ENOENT</code> al cargar módulos temporales de Vitest. Un segundo intento limitado tampoco inició correctamente por resolución de <code>vitest/config</code>. No se atribuyen estos errores a las reglas de negocio ni se presenta la suite como aprobada.</li><li>Se encontraron las migraciones <code>20261007192812_add_cierre_jornada_solicitado</code> y <code>20261009120000_add_punto_recogida_texto</code>. Su presencia no demuestra que estén aplicadas en la base desplegada.</li><li>No se ejecutaron migraciones, no se modificó el backend original y no se validó Supabase en vivo.</li></ul>
+<h2>Siguiente paso</h2>
+<p>Ya se puede comenzar la integración móvil usando estos contratos. Antes de considerar terminado el flujo completo, resolver la duración de la sesión SSE y comprobar en un entorno de pruebas: registro/login, jornada, ubicación, disponibilidad, asignación recibida por SSE, recuperación al reabrir, aceptación antes y después del vencimiento, finalización y cierre diferido de jornada.</p>
+<p>El plan de implementación anterior debe interpretarse con estas actualizaciones: <code>conductorId</code> sustituye la propuesta de <code>/me</code>, y SSE del backend sustituye la conexión directa de la app a Supabase.</p></main></body></html>

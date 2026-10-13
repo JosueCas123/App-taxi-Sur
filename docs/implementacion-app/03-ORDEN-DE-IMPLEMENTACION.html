@@ -1,0 +1,14 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>03-ORDEN-DE-IMPLEMENTACION</title><link rel="stylesheet" href="assets/plan.css"></head><body><header><strong>TAXISUR / APP DEL CONDUCTOR</strong><br><a href="ABRIR_AQUI.html">Volver al índice de implementación</a></header><main><h1>Orden de implementación y entregas</h1>
+<p>Cada módulo se completa con sus criterios y evidencia, no solo creando archivos. No se asignan duraciones ficticias: el esfuerzo depende de la integración y las pruebas en dispositivo.</p>
+<div class="table"><table>
+<tr><th>Etapa</th><th>Módulos</th><th>Resultado verificable</th></tr>
+<tr><td>1</td><td>M00 → M01 → M02</td><td>App arranca, login seguro, registro y aprobación</td></tr>
+<tr><td>2</td><td>M03 base → M04 → completar M03</td><td>Jornada y GPS real; disponibilidad validada</td></tr>
+<tr><td>3</td><td>M05 → M06 → M07</td><td>Oferta real por SSE, aceptación y finalización</td></tr>
+<tr><td>4</td><td>M08 → M09</td><td>Perfil, salida y recuperación accesibles</td></tr>
+<tr><td>5</td><td>M10</td><td>Flujo completo probado en dispositivo</td></tr>
+</table></div>
+<p>M03 y M04 comparten el estado de jornada: crear primero el servicio de jornada, luego GPS y al final cerrar la aceptación del interruptor de disponibilidad. No marcar M03 terminado con un GPS simulado.</p>
+<p>Los pendientes de backend no impiden empezar M00–M04. Para certificar M05 y M10 se necesita validar el transporte SSE completo y resolver su ciclo de sesión.</p>
+<h2>Archivos por módulo</h2>
+<ul><li><a href="modulos/M00-BASE-EXPO.html">M00 — Base Expo, navegación y sistema visual</a></li><li><a href="modulos/M01-ACCESO-Y-SESION.html">M01 — Login, identidad y sesión segura</a></li><li><a href="modulos/M02-REGISTRO-Y-CUENTA.html">M02 — Registro y estados de cuenta</a></li><li><a href="modulos/M03-JORNADA-Y-DISPONIBILIDAD.html">M03 — Inicio, jornada y disponibilidad</a></li><li><a href="modulos/M04-UBICACION.html">M04 — Permisos y envío de ubicación</a></li><li><a href="modulos/M05-EVENTOS-Y-RECUPERACION.html">M05 — SSE y recuperación del estado operativo</a></li><li><a href="modulos/M06-SOLICITUD-ENTRANTE.html">M06 — Oferta, contador y respuesta</a></li><li><a href="modulos/M07-SERVICIO-Y-FINALIZACION.html">M07 — Servicio activo y finalización</a></li><li><a href="modulos/M08-PERFIL-Y-SALIDA.html">M08 — Perfil, ayuda y cierre de sesión</a></li><li><a href="modulos/M09-CONEXION-Y-ACCESIBILIDAD.html">M09 — Conectividad, errores y accesibilidad</a></li><li><a href="modulos/M10-VALIDACION-Y-ENTREGA.html">M10 — Integración, pruebas y compilación de prueba</a></li></ul></main></body></html>

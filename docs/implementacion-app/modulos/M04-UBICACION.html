@@ -1,0 +1,21 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>M04-UBICACION</title><link rel="stylesheet" href="../assets/plan.css"></head><body><header><strong>TAXISUR / APP DEL CONDUCTOR</strong><br><a href="../ABRIR_AQUI.html">Volver al índice de implementación</a></header><main><h1>M04 — Permisos y envío de ubicación</h1>
+<p><strong>Estado:</strong> por implementar en React Native. <strong>Dependencias:</strong> M01 y M02; consume el estado de jornada de M03.</p>
+<h2>Objetivo</h2>
+<p>Compartir posiciones recientes durante la jornada y explicar al conductor si su ubicación está operativa.</p>
+<h2>Pantallas de referencia</h2>
+<ul><li><a href="../referencias-ui/ubicacion.html">ubicacion.html</a></li><li><a href="../referencias-ui/ubicacion-desactualizada.html">ubicacion-desactualizada.html</a></li></ul>
+<p>Los HTML son referencias visuales con simulaciones, no componentes nativos ni pruebas de integración.</p>
+<h2>Contratos</h2>
+<p>POST /api/conductores/:id/ubicacion. No utilizar el GET de ubicación: es administrativo.</p>
+<p>Consultar cuerpos y respuestas en <a href="../01-CONTRATOS-API.html">01-CONTRATOS-API.md</a>.</p>
+<h2>Tareas</h2>
+<ol><li>Solicitar permiso cuando el conductor inicia el flujo de ubicación, con explicación concreta. Distinguir permiso denegado, GPS apagado, precisión insuficiente, error de red y posición obsoleta.</li><li>Implementar primero ubicación en primer plano con expo-location. Obtener una muestra reciente y enviar solo {latitud,longitud}; no mandar timestamp ni campos adicionales al esquema estricto.</li><li>Usar un intervalo objetivo configurable de 30 segundos como decisión inicial, evitando envíos simultáneos. No reenviar posiciones antiguas almacenadas offline: el backend registra la hora de recepción y podría tratarlas como frescas.</li><li>Conservar en memoria hora de captura local y respuesta {horaRegistro,esValida}. Un 201 con esValida:false no permite declarar GPS listo. Después de reiniciar adquirir una muestra nueva.</li><li>Al finalizar jornada o cerrar sesión detener observadores e intervalos. En cierre diferido con servicio, mantener el ciclo mientras corresponda al estado confirmado y los permisos.</li><li>En segundo plano no prometer seguimiento ni recepción de ofertas: esta fase es foreground. Al regresar, actualizar permisos, posición, perfil y solicitud activa. Si se necesita operar con pantalla bloqueada, tratarlo como una ampliación verificable en development build.</li></ol>
+<h2>Archivos propuestos</h2>
+<ul><li><code>src/features/location/location-service.ts</code></li><li><code>src/features/location/api.ts</code></li><li><code>src/features/location/use-location-sharing.ts</code></li><li><code>src/features/location/screens/*</code></li></ul>
+<p>Las rutas son una propuesta de organización; adaptar si el repositorio ya tiene convenciones.</p>
+<h2>Criterios de aceptación</h2>
+<ul><li>☐ Permiso rechazado conserva una vía para abrir ajustes y reintentar.</li><li>☐ Tras conceder permiso se envía una ubicación válida antes de activar disponibilidad.</li><li>☐ Más de cinco minutos sin envío confirmado muestra ubicación desactualizada; no inventa un cambio del servidor.</li><li>☐ Un viaje offline no genera una cola de coordenadas antiguas al reconectar.</li><li>☐ No quedan suscripciones activas después del logout o jornada finalizada.</li></ul>
+<h2>Decisiones y límites</h2>
+<p>El sistema operativo no garantiza un intervalo exacto en segundo plano. El alcance inicial coincide con la sección foreground de la especificación; no equivale a rastreo permanente. Véase Expo Location SDK 57 en las fuentes.</p>
+<h2>Prompt para comenzar</h2>
+<blockquote>Implementa únicamente M04 — Permisos y envío de ubicación en la app TaxiSur existente. Lee este archivo, 01-CONTRATOS-API.md y 02-ARQUITECTURA.md; comprueba que sus dependencias estén listas. Usa las referencias HTML solo como diseño, conserva las reglas de negocio del backend y no inventes endpoints. Implementa las tareas, verifica los criterios aplicables y entrega un resumen de archivos modificados, pruebas ejecutadas y pendientes. No avances automáticamente al módulo siguiente ni publiques la app.</blockquote></main></body></html>

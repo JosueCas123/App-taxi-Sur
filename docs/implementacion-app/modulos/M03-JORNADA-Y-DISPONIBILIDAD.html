@@ -1,0 +1,21 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>M03-JORNADA-Y-DISPONIBILIDAD</title><link rel="stylesheet" href="../assets/plan.css"></head><body><header><strong>TAXISUR / APP DEL CONDUCTOR</strong><br><a href="../ABRIR_AQUI.html">Volver al índice de implementación</a></header><main><h1>M03 — Inicio, jornada y disponibilidad</h1>
+<p><strong>Estado:</strong> por implementar en React Native. <strong>Dependencias:</strong> M02; M04 para completar la disponibilidad real.</p>
+<h2>Objetivo</h2>
+<p>Reflejar la jornada y disponibilidad confirmadas por el servidor, incluido el cierre diferido.</p>
+<h2>Pantallas de referencia</h2>
+<ul><li><a href="../referencias-ui/inicio.html">inicio.html</a></li></ul>
+<p>Los HTML son referencias visuales con simulaciones, no componentes nativos ni pruebas de integración.</p>
+<h2>Contratos</h2>
+<p>GET /api/conductores/:id; PATCH /api/conductores/:id/jornada; PATCH /api/conductores/:id/disponibilidad.</p>
+<p>Consultar cuerpos y respuestas en <a href="../01-CONTRATOS-API.html">01-CONTRATOS-API.md</a>.</p>
+<h2>Tareas</h2>
+<ol><li>Crear home con estado de cuenta, jornada, disponibilidad y GPS. Separar esos cuatro conceptos; no convertirlos en un único booleano.</li><li>Enviar {accion:&quot;iniciar&quot;} o {accion:&quot;finalizar&quot;} a jornada; actualizar desde el perfil devuelto. Iniciar jornada no equivale a ponerse disponible.</li><li>Activar disponibilidad únicamente con jornada activa, cuenta aprobada, permiso/GPS adecuado y ubicación reciente aceptada por el servidor. Enviar {disponible:true|false}.</li><li>Durante una mutación desactivar el control afectado. No mostrar el cambio como confirmado antes de recibir respuesta. En 409 recuperar perfil y solicitud activa.</li><li>Si se solicita cerrar jornada durante un servicio, mostrar cierreJornadaSolicitado y mantener el servicio. No detener prematuramente todo el flujo como si la jornada ya estuviera finalizada.</li><li>Con solicitud pendiente, el backend puede rechazar el cierre. Explicar el conflicto y resolver/reconciliar la oferta antes de volver a intentarlo. No inventar una cancelación de solicitud.</li><li>Preparar la interfaz de GPS de M04 con un doble de prueba durante el desarrollo; solo completar la aceptación del módulo al conectarla a ubicación real.</li></ol>
+<h2>Archivos propuestos</h2>
+<ul><li><code>src/features/shift/api.ts</code></li><li><code>src/features/shift/use-shift.ts</code></li><li><code>src/features/shift/screens/HomeScreen.tsx</code></li><li><code>src/features/shift/components/*</code></li></ul>
+<p>Las rutas son una propuesta de organización; adaptar si el repositorio ya tiene convenciones.</p>
+<h2>Criterios de aceptación</h2>
+<ul><li>☐ Iniciar jornada devuelve activa/no_disponible y no envía disponible automáticamente.</li><li>☐ No se habilita disponible sin GPS confirmado reciente.</li><li>☐ Doble pulsación genera una sola mutación concurrente.</li><li>☐ Cerrar con servicio conserva en_servicio y muestra cierre pendiente.</li><li>☐ Al completar ese servicio el perfil muestra jornada finalizada y no_disponible.</li></ul>
+<h2>Decisiones y límites</h2>
+<p>El contrato ya está implementado; no crear los endpoints propuestos en el plan anterior. Los errores de jornada/disponibilidad usan INVALID_STATE_TRANSITION y HTTP 409, no los códigos de solicitudes.</p>
+<h2>Prompt para comenzar</h2>
+<blockquote>Implementa únicamente M03 — Inicio, jornada y disponibilidad en la app TaxiSur existente. Lee este archivo, 01-CONTRATOS-API.md y 02-ARQUITECTURA.md; comprueba que sus dependencias estén listas. Usa las referencias HTML solo como diseño, conserva las reglas de negocio del backend y no inventes endpoints. Implementa las tareas, verifica los criterios aplicables y entrega un resumen de archivos modificados, pruebas ejecutadas y pendientes. No avances automáticamente al módulo siguiente ni publiques la app.</blockquote></main></body></html>

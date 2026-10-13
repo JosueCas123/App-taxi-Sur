@@ -1,0 +1,21 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>M06-SOLICITUD-ENTRANTE</title><link rel="stylesheet" href="../assets/plan.css"></head><body><header><strong>TAXISUR / APP DEL CONDUCTOR</strong><br><a href="../ABRIR_AQUI.html">Volver al índice de implementación</a></header><main><h1>M06 — Oferta, contador y respuesta</h1>
+<p><strong>Estado:</strong> por implementar en React Native. <strong>Dependencias:</strong> M03, M04 y M05.</p>
+<h2>Objetivo</h2>
+<p>Permitir una única decisión sobre una oferta vigente, respetando el plazo del servidor.</p>
+<h2>Pantallas de referencia</h2>
+<ul><li><a href="../referencias-ui/solicitud-entrante.html">solicitud-entrante.html</a></li><li><a href="../referencias-ui/solicitud-expirada.html">solicitud-expirada.html</a></li></ul>
+<p>Los HTML son referencias visuales con simulaciones, no componentes nativos ni pruebas de integración.</p>
+<h2>Contratos</h2>
+<p>GET /api/conductores/:id/solicitud-activa; GET /api/solicitudes/:id; POST /api/solicitudes/:id/responder.</p>
+<p>Consultar cuerpos y respuestas en <a href="../01-CONTRATOS-API.html">01-CONTRATOS-API.md</a>.</p>
+<h2>Tareas</h2>
+<ol><li>Mostrar pasajero.nombre, puntoRecogidaTexto, coordenadas como respaldo, destino nullable y distanciaAproximadaKm nullable. No mostrar teléfono del pasajero ni importar textos de demo.</li><li>Calcular tiempo restante desde expiraEn; nunca iniciar 60 segundos nuevos al montar o reabrir la pantalla. Usar reloj local solo para presentación, sin atribuirle autoridad sobre la vigencia.</li><li>Si la fecha HTTP Date está disponible y validada puede usarse para una estimación del desfase; no existe serverNow en el cuerpo. Probar reloj adelantado/atrasado y conservar al backend como autoridad.</li><li>Enviar {acepta:true} o {acepta:false}. Bloquear ambos botones durante la petición; el éxito devuelve SolicitudDto, no el DTO ampliado con pasajero.</li><li>Aceptar navega al servicio confirmado; rechazar provoca reconciliación y retorno operativo. El backend devuelve buscando al rechazar y elimina la asignación; no esperar estado persistente rechazada.</li><li>Al llegar a cero desactivar acciones, mostrar expirada y reconciliar. No llamar a un endpoint de expiración inexistente. Si solicitud-activa aún devuelve la oferta vencida, no reabrirla ni reiniciar el contador.</li><li>En timeout de respuesta consultar estado antes de repetir. Un 409 significa conflicto o vencimiento: no convertirlo en aceptación ni lanzar reintentos automáticos.</li></ol>
+<h2>Archivos propuestos</h2>
+<ul><li><code>src/features/requests/screens/IncomingRequestScreen.tsx</code></li><li><code>src/features/requests/screens/ExpiredRequestScreen.tsx</code></li><li><code>src/features/requests/use-offer-deadline.ts</code></li><li><code>src/features/requests/use-respond.ts</code></li></ul>
+<p>Las rutas son una propuesta de organización; adaptar si el repositorio ya tiene convenciones.</p>
+<h2>Criterios de aceptación</h2>
+<ul><li>☐ Reabrir una oferta a mitad de ventana muestra solo el tiempo restante.</li><li>☐ Tocar aceptar repetidamente produce una petición activa.</li><li>☐ Aceptación tardía/409 no entra en servicio.</li><li>☐ Tras rechazo no se consulta repetidamente el detalle ya desasignado, que puede devolver 403.</li><li>☐ Valores null muestran alternativas honestas: destino no indicado o distancia no disponible.</li></ul>
+<h2>Decisiones y límites</h2>
+<p>No agregar chat, llamada al pasajero, navegación en mapa ni tarifa calculada. La UI de expiración es un estado de presentación; la oferta puede seguir temporalmente esperando_respuesta hasta que el job la procese.</p>
+<h2>Prompt para comenzar</h2>
+<blockquote>Implementa únicamente M06 — Oferta, contador y respuesta en la app TaxiSur existente. Lee este archivo, 01-CONTRATOS-API.md y 02-ARQUITECTURA.md; comprueba que sus dependencias estén listas. Usa las referencias HTML solo como diseño, conserva las reglas de negocio del backend y no inventes endpoints. Implementa las tareas, verifica los criterios aplicables y entrega un resumen de archivos modificados, pruebas ejecutadas y pendientes. No avances automáticamente al módulo siguiente ni publiques la app.</blockquote></main></body></html>

@@ -1,0 +1,6 @@
+Paquete documental generado el 10/10/2026.
+11 módulos Markdown y HTML.
+16 pantallas referenciadas.
+Enlaces locales de las páginas del plan comprobados.
+Vista previa automática no realizada: el navegador de la herramienta bloqueó el protocolo file.
+No equivale a pruebas de implementación nativa.
