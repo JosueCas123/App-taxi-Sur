@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   StyleSheet,
   Text,
@@ -16,6 +16,7 @@ type TextFieldProps = TextInputProps & {
   error?: string;
   containerStyle?: ViewStyle;
   labelStyle?: TextStyle;
+  trailingAccessory?: ReactNode;
 };
 
 export function TextField({
@@ -24,6 +25,7 @@ export function TextField({
   style,
   containerStyle,
   labelStyle,
+  trailingAccessory,
   ...inputProps
 }: TextFieldProps) {
   const [enfocado, setEnfocado] = useState(false);
@@ -32,27 +34,31 @@ export function TextField({
   return (
     <View style={[styles.contenedor, containerStyle]}>
       {label ? <Text style={[styles.label, labelStyle]}>{label}</Text> : null}
-      <TextInput
-        {...inputProps}
-        accessibilityLabel={inputProps.accessibilityLabel ?? label}
-        accessibilityState={inputProps.accessibilityState}
-        aria-invalid={conError}
-        placeholderTextColor={colors.muted}
-        style={[
-          styles.input,
-          enfocado && !conError && styles.inputEnfocado,
-          conError && styles.inputError,
-          style,
-        ]}
-        onFocus={(evento) => {
-          setEnfocado(true);
-          inputProps.onFocus?.(evento);
-        }}
-        onBlur={(evento) => {
-          setEnfocado(false);
-          inputProps.onBlur?.(evento);
-        }}
-      />
+      <View style={styles.inputFila}>
+        <TextInput
+          {...inputProps}
+          accessibilityLabel={inputProps.accessibilityLabel ?? label}
+          accessibilityState={inputProps.accessibilityState}
+          aria-invalid={conError}
+          placeholderTextColor={inputProps.placeholderTextColor ?? colors.muted}
+          style={[
+            styles.input,
+            styles.inputFlexible,
+            style,
+            enfocado && !conError && styles.inputEnfocado,
+            conError && styles.inputError,
+          ]}
+          onFocus={(evento) => {
+            setEnfocado(true);
+            inputProps.onFocus?.(evento);
+          }}
+          onBlur={(evento) => {
+            setEnfocado(false);
+            inputProps.onBlur?.(evento);
+          }}
+        />
+        {trailingAccessory ? <View style={styles.accesorio}>{trailingAccessory}</View> : null}
+      </View>
       {error ? (
         <Text accessibilityRole="alert" style={styles.error}>
           {error}
@@ -63,6 +69,18 @@ export function TextField({
 }
 
 const styles = StyleSheet.create({
+  inputFila: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  inputFlexible: {
+    flex: 1,
+    minWidth: 0,
+  },
+  accesorio: {
+    position: 'absolute',
+    right: 5,
+  },
   contenedor: {
     gap: spacing.xs,
   },

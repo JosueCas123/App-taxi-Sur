@@ -1,9 +1,10 @@
 export type RuntimeConfig = {
   apiUrl: string | null;
+  contactoAyuda: string | null;
 };
 
-const valorDefinido = process.env.EXPO_PUBLIC_API_URL?.trim() ?? '';
-
 export const runtimeConfig: RuntimeConfig = {
-  apiUrl: valorDefinido || null,
+  // Expo solo incorpora al bundle las referencias estaticas a variables publicas.
+  apiUrl: process.env.EXPO_PUBLIC_API_URL?.trim() || null,
+  contactoAyuda: process.env.EXPO_PUBLIC_CONTACTO_AYUDA?.trim() || null,
 };

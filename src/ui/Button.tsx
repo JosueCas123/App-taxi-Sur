@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, type TextStyle, type ViewStyle } from 'react-native';
 
 import { colors, minTouchTarget, radius, spacing } from '../theme/tokens';
@@ -12,6 +13,7 @@ type ButtonProps = {
   loading?: boolean;
   style?: ViewStyle;
   textStyle?: TextStyle;
+  trailingIcon?: ReactNode;
 };
 
 const VARIANTES: Record<ButtonVariant, { fondo: string; texto: string; contorno?: string }> = {
@@ -28,6 +30,7 @@ export function Button({
   loading = false,
   style,
   textStyle,
+  trailingIcon,
 }: ButtonProps) {
   const colores = VARIANTES[variant];
 
@@ -50,7 +53,10 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={colores.texto} />
       ) : (
-        <Text style={[styles.texto, { color: colores.texto }, textStyle]}>{label}</Text>
+        <>
+          <Text style={[styles.texto, { color: colores.texto }, textStyle]}>{label}</Text>
+          {trailingIcon}
+        </>
       )}
     </Pressable>
   );

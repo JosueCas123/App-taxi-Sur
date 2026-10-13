@@ -4,31 +4,33 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-na
 import Svg, { Circle, Ellipse, G, Path, Rect, Text as SvgText } from 'react-native-svg';
 
 import { useSession } from '../features/auth/session-context';
+import { rutaInicialPorEstado } from '../navigation/resolve-route';
 import { colors } from '../theme/tokens';
 import { LoadingState, Screen } from '../ui';
 
 export default function BienvenidaScreen() {
   const router = useRouter();
-  const { status, restaurarSesion } = useSession();
+  const { status, conductor } = useSession();
   const { height } = useWindowDimensions();
   const escenaAlto = height < 740 ? 150 : 200;
 
   useEffect(() => {
-    if (status === 'restaurando') {
-      restaurarSesion();
+    if (status === 'autenticado') {
+      if (!conductor) {
+        return;
+      }
+      router.replace(rutaInicialPorEstado(conductor.estado));
+    } else if (status === 'sesion_sin_verificar') {
+      router.replace('/sesion-sin-verificar');
     }
-  }, [status, restaurarSesion]);
+  }, [status, conductor, router]);
 
-  if (status === 'restaurando') {
+  if (status === 'restaurando' || status === 'autenticado' || status === 'sesion_sin_verificar') {
     return (
       <Screen style={styles.fondo}>
         <LoadingState label="Restaurando sesión…" color={colors.yellow} style={styles.centrado} />
       </Screen>
     );
-  }
-
-  if (status === 'autenticado') {
-    return <Screen style={styles.fondo} />;
   }
 
   return (

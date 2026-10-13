@@ -1,6 +1,9 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { NavigationBar } from 'expo-navigation-bar';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
+import { Platform, StatusBar as NativeStatusBar, StyleSheet, View } from 'react-native';
 
 import { colors } from '../../theme/tokens';
 
@@ -25,11 +28,27 @@ export function SystemBarProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <SystemBarContext.Provider value={{ backgroundColor, setBackgroundColor }}>
-      <StatusBar style={barStyle} />
-      {children}
+      <View style={[styles.root, { backgroundColor }]}>
+        {/* RN 0.86 still supports native bar colors on pre-Android 15 non-edge-to-edge hosts. */}
+        {Platform.OS === 'android' && Platform.Version < 35 ? (
+          <NativeStatusBar
+            barStyle={barStyle === 'light' ? 'light-content' : 'dark-content'}
+            backgroundColor={backgroundColor}
+            translucent={false}
+          />
+        ) : (
+          <StatusBar style={barStyle} />
+        )}
+        <NavigationBar style={barStyle} />
+        {children}
+      </View>
     </SystemBarContext.Provider>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+});
 
 export function useSystemBar() {
   return useContext(SystemBarContext);
@@ -37,9 +56,11 @@ export function useSystemBar() {
 
 export function useScreenBackground(color: string = colors.bg) {
   const { setBackgroundColor } = useSystemBar();
-  useEffect(() => {
-    setBackgroundColor(color);
-  }, [color, setBackgroundColor]);
+  useFocusEffect(
+    useCallback(() => {
+      setBackgroundColor(color);
+    }, [color, setBackgroundColor])
+  );
 }
 
 function isDarkColor(hex: string): boolean {
