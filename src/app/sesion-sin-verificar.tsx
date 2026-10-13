@@ -1,0 +1,1 @@
+export { SesionSinVerificarScreen as default } from '../features/auth/screens/sesion-sin-verificar';

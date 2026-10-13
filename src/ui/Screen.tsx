@@ -14,6 +14,7 @@ import { colors, spacing } from '../theme/tokens';
 
 type ScreenProps = {
   children?: ReactNode;
+  header?: ReactNode;
   scroll?: boolean;
   style?: ViewStyle;
   contentContainerStyle?: ViewStyle;
@@ -22,6 +23,7 @@ type ScreenProps = {
 
 export function Screen({
   children,
+  header,
   scroll = false,
   style,
   contentContainerStyle,
@@ -45,7 +47,8 @@ export function Screen({
   );
 
   return (
-    <SafeAreaView style={[styles.base, style]}>
+    <SafeAreaView style={[styles.base, style, { backgroundColor }]}>
+      {header}
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

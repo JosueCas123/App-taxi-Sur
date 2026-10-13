@@ -34,7 +34,8 @@
           "enforceContrast": false,
           "style": "dark"
         }
-      ]
+      ],
+      "expo-secure-store"
     ]
   }
 }
