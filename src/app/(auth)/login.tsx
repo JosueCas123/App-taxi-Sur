@@ -1,5 +1,5 @@
-import { Link } from 'expo-router';
-import { useRef, useState } from 'react';
+import { Link, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 
@@ -18,6 +18,7 @@ export default function LoginScreen() {
   const { width } = useWindowDimensions();
   const margen = width <= 355 ? 18 : 22;
   const { status, mensajeSesion, iniciarSesion } = useSession();
+  const { telefono: telefonoPrellenado } = useLocalSearchParams<{ telefono?: string }>();
   const [telefono, setTelefono] = useState('');
   const [pin, setPin] = useState('');
   const [mostrarPin, setMostrarPin] = useState(false);
@@ -26,6 +27,22 @@ export default function LoginScreen() {
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const envioEnCurso = useRef(false);
+
+  // Prellenado desde el registro: precarga solo el teléfono y vacía siempre el PIN,
+  // aunque la navegación reutilice una pantalla de login ya montada.
+  useFocusEffect(
+    useCallback(() => {
+      const prellenado = typeof telefonoPrellenado === 'string' ? telefonoPrellenado.trim() : '';
+      if (!prellenado) {
+        return;
+      }
+      setTelefono(prellenado);
+      setPin('');
+      setErrorTelefono(null);
+      setErrorPin(null);
+      setErrorGeneral(null);
+    }, [telefonoPrellenado])
+  );
 
   const cambiarTelefono = (texto: string) => {
     setTelefono(texto);
@@ -177,7 +194,7 @@ export default function LoginScreen() {
       <Button
         label="Registrarme como conductor"
         variant="secondary"
-        disabled
+        onPress={() => router.push('/registro')}
         style={styles.botonRegistro}
         textStyle={styles.botonTexto}
       />

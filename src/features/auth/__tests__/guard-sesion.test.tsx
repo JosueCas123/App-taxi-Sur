@@ -7,12 +7,16 @@ import * as SecureStore from 'expo-secure-store';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Text } from 'react-native';
 
-import { GuardRutaAuth, GuardRutaPrivada } from '../../../navigation/guard-sesion';
+import { GuardRutaAuth, GuardRutaCuenta, GuardRutaOperativa, GuardRutaPrivada } from '../../../navigation/guard-sesion';
+import { rutaInicialPorEstado } from '../../../navigation/resolve-route';
 import type { ConductorDetalleDto } from '../api';
 import { SessionProvider, useSession } from '../session-context';
 
+let mockPathname = '/';
+
 jest.mock('expo-router', () => ({
   router: { replace: jest.fn(), back: jest.fn(), push: jest.fn() },
+  usePathname: () => mockPathname,
 }));
 jest.mock('expo-secure-store', () => ({
   setItemAsync: jest.fn(),
@@ -73,6 +77,7 @@ function montarAuth() {
 
 beforeEach(() => {
   jest.resetAllMocks();
+  mockPathname = '/';
   almacenado = jwt();
   client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   fetchMock = jest.fn<typeof fetch>();
@@ -162,6 +167,107 @@ describe('GuardRutaAuth ((auth))', () => {
     await montarAuth();
     expect(await screen.findByTestId('ruta-auth')).toBeTruthy();
     expect(router.replace).not.toHaveBeenCalled();
+  });
+});
+
+describe('GuardRutaOperativa ((operacion))', () => {
+  function montarOperativa() {
+    return render(
+      <GuardRutaOperativa>
+        <Text testID="ruta-operativa">operacion</Text>
+      </GuardRutaOperativa>,
+      { wrapper: ({ children }) => envolver(children) }
+    );
+  }
+
+  it('aprobado renderiza el contenido operativo sin navegar', async () => {
+    fetchMock.mockResolvedValue(respuesta(perfil('aprobado')));
+    await montarOperativa();
+    expect(await screen.findByTestId('ruta-operativa')).toBeTruthy();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it.each(['pendiente', 'rechazado', 'suspendido'] as const)(
+    'acceso directo con %s no renderiza contenido operativo y redirige a su pantalla de cuenta',
+    async (estado) => {
+      fetchMock.mockResolvedValue(respuesta(perfil(estado)));
+      await montarOperativa();
+      await waitFor(() => expect(router.replace).toHaveBeenCalledWith(rutaInicialPorEstado(estado)));
+      expect(screen.queryByTestId('ruta-operativa')).toBeNull();
+    }
+  );
+
+  it('sin sesión no renderiza contenido operativo y el guard de sesión redirige', async () => {
+    almacenado = null;
+    await render(
+      <GuardRutaPrivada>
+        <GuardRutaOperativa>
+          <Text testID="ruta-operativa">operacion</Text>
+        </GuardRutaOperativa>
+      </GuardRutaPrivada>,
+      { wrapper: ({ children }) => envolver(children) }
+    );
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/login'));
+    expect(screen.queryByTestId('ruta-operativa')).toBeNull();
+  });
+});
+
+describe('GuardRutaCuenta ((cuenta))', () => {
+  function montarCuenta() {
+    return render(
+      <GuardRutaCuenta>
+        <Text testID="ruta-cuenta">cuenta</Text>
+      </GuardRutaCuenta>,
+      { wrapper: ({ children }) => envolver(children) }
+    );
+  }
+
+  type CasoCuenta = [
+    estado: 'pendiente' | 'rechazado' | 'suspendido',
+    pathname: '/revision' | '/rechazada' | '/suspendida',
+  ];
+
+  it.each<CasoCuenta>([
+    ['pendiente', '/revision'],
+    ['rechazado', '/rechazada'],
+    ['suspendido', '/suspendida'],
+  ])('con el perfil %s en su pantalla correspondiente renderiza sin navegar', async (estado, pathname) => {
+    mockPathname = pathname;
+    fetchMock.mockResolvedValue(respuesta(perfil(estado)));
+    await montarCuenta();
+    expect(await screen.findByTestId('ruta-cuenta')).toBeTruthy();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it('un acceso directo a otra pantalla de cuenta redirige a la que corresponde al perfil real', async () => {
+    mockPathname = '/rechazada';
+    fetchMock.mockResolvedValue(respuesta(perfil('pendiente')));
+    await montarCuenta();
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/(cuenta)/revision'));
+    expect(screen.queryByTestId('ruta-cuenta')).toBeNull();
+  });
+
+  it('una cuenta aprobado redirige al inicio y no renderiza la pantalla de cuenta', async () => {
+    mockPathname = '/revision';
+    fetchMock.mockResolvedValue(respuesta(perfil('aprobado')));
+    await montarCuenta();
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/(operacion)/inicio'));
+    expect(screen.queryByTestId('ruta-cuenta')).toBeNull();
+  });
+
+  it('un cambio de estado del perfil observado redirige a la nueva pantalla de cuenta', async () => {
+    mockPathname = '/revision';
+    fetchMock.mockResolvedValueOnce(respuesta(perfil('pendiente')));
+    await montarCuenta();
+    expect(await screen.findByTestId('ruta-cuenta')).toBeTruthy();
+
+    // El refresco de perfil actualiza la misma caché que observa la sesión.
+    client.setQueryData(['conductor', 'conductor-a'], {
+      ...perfil('pendiente'),
+      estado: 'suspendido',
+    });
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/(cuenta)/suspendida'));
+    expect(screen.queryByTestId('ruta-cuenta')).toBeNull();
   });
 });
 

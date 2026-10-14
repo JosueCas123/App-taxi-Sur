@@ -1,29 +1,24 @@
-import { StyleSheet, Text } from 'react-native';
+import { useCallback } from 'react';
 
-import { Screen } from '../../ui';
+import { EstadoCuentaScreen } from '../../features/account/screens/estado-cuenta';
+import { useRefrescoPerfil } from '../../features/account/use-refresco-perfil';
+import { useSession } from '../../features/auth/session-context';
 
 export default function RevisionScreen() {
+  const { conductor } = useSession();
+  const { refrescar, refrescando, error } = useRefrescoPerfil();
+
+  const manejarActualizar = useCallback(async () => {
+    await refrescar();
+  }, [refrescar]);
+
   return (
-    <Screen contentContainerStyle={styles.contenedor}>
-      <Text style={styles.titulo}>Cuenta en revisión</Text>
-      <Text style={styles.cuerpo}>Tu cuenta está siendo revisada (M02).</Text>
-    </Screen>
+    <EstadoCuentaScreen
+      estado="pendiente"
+      perfil={conductor}
+      cargando={refrescando}
+      error={error}
+      onActualizar={manejarActualizar}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  contenedor: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-  },
-  titulo: {
-    color: '#172538',
-    fontSize: 24,
-    fontWeight: '700',
-  },
-  cuerpo: {
-    color: '#627187',
-    fontSize: 16,
-    marginTop: 8,
-  },
-});
