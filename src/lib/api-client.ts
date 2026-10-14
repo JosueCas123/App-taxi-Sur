@@ -12,6 +12,9 @@ type ApiRequestOptions = {
 
 const TIEMPO_POR_DEFECTO_MS = 15000;
 
+// Log de diagnóstico solo en desarrollo y fuera de las pruebas, sin datos sensibles.
+const REGISTRAR_FALLOS = __DEV__ && process.env.NODE_ENV !== 'test';
+
 function codigoDesdeStatus(status: number): ApiErrorCode {
   switch (status) {
     case 401:
@@ -82,10 +85,17 @@ export async function apiRequest<T>(ruta: string, opciones: ApiRequestOptions = 
       );
     }
     if (controlador.signal.aborted) {
+      if (REGISTRAR_FALLOS) {
+        console.warn('[api] tiempo de espera agotado', { ruta, metodo, url });
+      }
       throw crearApiError({
         code: 'TIMEOUT',
         message: `La petición a ${ruta} excedió el tiempo de espera`,
       });
+    }
+    if (REGISTRAR_FALLOS) {
+      // Causa más común en dispositivo físico: EXPO_PUBLIC_API_URL apunta a localhost.
+      console.warn('[api] fallo de red (no se alcanzó el backend)', { ruta, metodo, url });
     }
     throw crearApiError({
       code: 'RED',
@@ -108,8 +118,19 @@ export async function apiRequest<T>(ruta: string, opciones: ApiRequestOptions = 
   const errorBackend = parsearErrorBackend(datos);
 
   if (!respuesta.ok) {
+    const code = codigoDesdeStatus(respuesta.status);
+    if (REGISTRAR_FALLOS) {
+      // Diagnóstico en desarrollo: nunca se registra el cuerpo ni datos sensibles (PIN).
+      console.warn('[api] respuesta no exitosa', {
+        ruta,
+        metodo,
+        status: respuesta.status,
+        code,
+        backendCode: errorBackend.code,
+      });
+    }
     throw crearApiError({
-      code: codigoDesdeStatus(respuesta.status),
+      code,
       status: respuesta.status,
       backendCode: errorBackend.code,
       message: errorBackend.message ?? 'Error inesperado en el servidor',

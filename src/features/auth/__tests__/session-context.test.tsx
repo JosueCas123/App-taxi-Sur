@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 
 import { queryKeys } from '../../../lib/query-client';
 import type { ConductorDetalleDto } from '../api';
-import { registrarAlInvalidar, SessionProvider, useSession } from '../session-context';
+import { registrarAlInvalidar, SessionProvider, useSession, type SessionStatus } from '../session-context';
 
 jest.mock('expo-secure-store', () => ({
   setItemAsync: jest.fn(),
@@ -359,4 +359,89 @@ it('un listener que falla no impide borrar token ni notificar a los demas', asyn
     quitarFallido();
     quitarListener();
   }
+});
+
+it('actualizarPerfil fuerza una lectura vigente y actualiza el perfil observado', async () => {
+  fetchMock.mockResolvedValueOnce(respuesta(perfil()));
+  const { result } = await montar();
+  expect(result.current.status).toBe('autenticado');
+  const token = almacenado;
+  fetchMock.mockResolvedValueOnce(respuesta({ ...perfil(), estado: 'suspendido' }));
+  await act(() => result.current.actualizarPerfil());
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(fetchMock.mock.calls[1][0]).toBe('https://api.example.test/api/conductores/conductor-a');
+  expect(fetchMock.mock.calls[1][1]?.headers).toEqual(
+    expect.objectContaining({ Authorization: `Bearer ${token}` })
+  );
+  await waitFor(() => expect(result.current.conductor?.estado).toBe('suspendido'));
+  expect(client.getQueryData(queryKeys.conductor('conductor-a'))).toMatchObject({ estado: 'suspendido' });
+});
+
+it('agrupa varias actualizaciones simultaneas en una sola peticion', async () => {
+  fetchMock.mockResolvedValueOnce(respuesta(perfil()));
+  const { result } = await montar();
+  const pendiente = diferida<Response>();
+  fetchMock.mockReturnValueOnce(pendiente.promise);
+  let primero!: Promise<void>;
+  let segundo!: Promise<void>;
+  await act(async () => {
+    primero = result.current.actualizarPerfil();
+    segundo = result.current.actualizarPerfil();
+  });
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  await act(async () => {
+    pendiente.resolve(respuesta({ ...perfil(), estado: 'rechazado' }));
+    await Promise.all([primero, segundo]);
+  });
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  await waitFor(() => expect(result.current.conductor?.estado).toBe('rechazado'));
+});
+
+it.each<[number, SessionStatus, string]>([
+  [401, 'no_autenticado', 'Tu sesi\u00f3n expir\u00f3. Ingresa nuevamente'],
+  [403, 'sesion_incompatible', 'Tu sesi\u00f3n ya no es v\u00e1lida'],
+  [404, 'sesion_incompatible', 'Tu sesi\u00f3n ya no es v\u00e1lida'],
+])('actualizarPerfil con %s aplica la semantica de M01', async (status, esperado, mensaje) => {
+  fetchMock.mockResolvedValueOnce(respuesta(perfil()));
+  const { result } = await montar();
+  fetchMock.mockResolvedValueOnce(respuesta({}, status));
+  await act(() => result.current.actualizarPerfil());
+  expect(result.current.status).toBe(esperado);
+  expect(result.current.mensajeSesion).toBe(mensaje);
+  expect(result.current.token).toBeNull();
+  expect(result.current.conductor).toBeNull();
+  expect(almacenado).toBeNull();
+});
+
+it('un fallo de red en actualizarPerfil conserva la sesion y propaga el error', async () => {
+  fetchMock.mockResolvedValueOnce(respuesta(perfil()));
+  const { result } = await montar();
+  const token = almacenado;
+  fetchMock.mockRejectedValueOnce(new TypeError('Network request failed'));
+  await act(async () => {
+    await expect(result.current.actualizarPerfil()).rejects.toMatchObject({ code: 'RED' });
+  });
+  expect(result.current.status).toBe('autenticado');
+  expect(result.current.token).toBe(token);
+  expect(almacenado).toBe(token);
+  expect(result.current.conductor?.id).toBe('conductor-a');
+  expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+});
+
+it('una respuesta tardia de actualizarPerfil no reemplaza el perfil tras invalidar la sesion', async () => {
+  fetchMock.mockResolvedValueOnce(respuesta(perfil()));
+  const { result } = await montar();
+  const pendiente = diferida<Response>();
+  fetchMock.mockReturnValueOnce(pendiente.promise);
+  let refresco!: Promise<void>;
+  await act(async () => { refresco = result.current.actualizarPerfil(); });
+  await act(() => result.current.invalidarSesion());
+  await act(async () => {
+    pendiente.resolve(respuesta({ ...perfil(), estado: 'suspendido' }));
+    await refresco;
+  });
+  expect(result.current.status).toBe('no_autenticado');
+  expect(result.current.conductor).toBeNull();
+  expect(almacenado).toBeNull();
+  expect(client.getQueryData(queryKeys.conductor('conductor-a'))).toBeUndefined();
 });

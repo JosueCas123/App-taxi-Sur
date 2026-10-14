@@ -17,6 +17,7 @@ jest.mock('expo-router', () => {
   return {
     router: { replace: jest.fn(), back: jest.fn(), push: jest.fn() },
     Link: ({ children }: { children: ReactNode }) => children,
+    useLocalSearchParams: () => mockParametros,
     useFocusEffect: function useFocusEffect(efecto: () => void) {
       React.useEffect(efecto, [efecto]);
     },
@@ -49,6 +50,7 @@ const fetchOriginal = globalThis.fetch;
 let fetchMock: jest.MockedFunction<typeof fetch>;
 let almacenado: string | null;
 let client: QueryClient;
+let mockParametros: Record<string, string>;
 
 function jwt(payload: object = { conductorId: 'conductor-a', exp: 4102444800 }) {
   return `cabecera.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.firma`;
@@ -90,6 +92,7 @@ function cuerpoEnviado(indice = 0): { telefono: string; pin: string } {
 beforeEach(() => {
   jest.resetAllMocks();
   almacenado = null;
+  mockParametros = {};
   client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   fetchMock = jest.fn<typeof fetch>();
   globalThis.fetch = fetchMock;
@@ -204,4 +207,41 @@ it('el conmutador mostrar/ocultar cambia la visibilidad del PIN', async () => {
   expect(screen.getByLabelText('PIN').props.secureTextEntry).toBe(false);
   await fireEvent.press(screen.getByLabelText('Ocultar pin de acceso'));
   expect(screen.getByLabelText('PIN').props.secureTextEntry).toBe(true);
+});
+
+it('el botón de registro navega a /registro', async () => {
+  await montar();
+  await fireEvent.press(screen.getByRole('button', { name: 'Registrarme como conductor' }));
+  expect(router.push).toHaveBeenCalledWith('/registro');
+});
+
+it('prellena el teléfono desde el parámetro y deja el PIN vacío', async () => {
+  mockParametros = { telefono: '70000000' };
+  await montar();
+  expect(screen.getByLabelText('Número de teléfono').props.value).toBe('70000000');
+  expect(screen.getByLabelText('PIN').props.value).toBe('');
+});
+
+it('al reutilizar la pantalla con un nuevo teléfono vuelve a vaciar el PIN', async () => {
+  const vista = await montar();
+  await rellenar('70000000', '0012');
+  expect(screen.getByLabelText('PIN').props.value).toBe('0012');
+  mockParametros = { telefono: '80000000' };
+  await act(async () => {
+    await vista.rerender(<LoginScreen />);
+  });
+  expect(screen.getByLabelText('Número de teléfono').props.value).toBe('80000000');
+  expect(screen.getByLabelText('PIN').props.value).toBe('');
+});
+
+it('tras un login fallido se puede volver al registro', async () => {
+  fetchMock.mockResolvedValue(
+    respuesta({ error: { code: 'UNAUTHORIZED', message: 'Credenciales invalidas' } }, 401)
+  );
+  await montar();
+  await rellenar('70000000', '0012');
+  await fireEvent.press(screen.getByRole('button', { name: 'Ingresar' }));
+  expect(await screen.findByText('Teléfono o PIN incorrecto')).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Registrarme como conductor' }));
+  expect(router.push).toHaveBeenCalledWith('/registro');
 });

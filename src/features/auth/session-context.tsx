@@ -38,6 +38,7 @@ type SessionContextValue = {
   mensajeSesion: string | null;
   iniciarSesion: (telefono: string, pin: string) => Promise<void>;
   restaurarSesion: () => Promise<void>;
+  actualizarPerfil: () => Promise<void>;
   invalidarSesion: () => Promise<void>;
 };
 
@@ -76,6 +77,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const conductorIdActualRef = useRef<string | null>(null);
   const operacionRef = useRef(0);
   const almacenamientoRef = useRef<Promise<void>>(Promise.resolve());
+  const refrescoPerfilRef = useRef<Promise<void> | null>(null);
   const { data: conductor } = useQuery<ConductorDetalleDto>({
     queryKey: queryKeys.conductor(estado.conductorId ?? ''),
     queryFn: skipToken,
@@ -276,6 +278,55 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [confirmarConductor, ejecutarInvalidacion, limpiarCachesConductor, persistirToken, queryClient, sesionIncompatible]
   );
 
+  const actualizarPerfil = useCallback(async () => {
+    if (refrescoPerfilRef.current) {
+      // Agrupa solicitudes simultaneas en una sola peticion vigente.
+      return refrescoPerfilRef.current;
+    }
+    const tokenActual = estado.token;
+    const conductorIdActual = estado.conductorId;
+    if (!tokenActual || !conductorIdActual) {
+      return;
+    }
+    const operacion = operacionRef.current;
+    const ejecucion = (async () => {
+      try {
+        // Reutiliza la misma clave de Query y la cache existente.
+        await queryClient.fetchQuery({
+          queryKey: queryKeys.conductor(conductorIdActual),
+          queryFn: ({ signal }) => obtenerConductor(conductorIdActual, tokenActual, signal),
+          staleTime: 0,
+          retry: false,
+          networkMode: 'always',
+        });
+      } catch (error) {
+        if (operacion !== operacionRef.current) return;
+        if (esErrorApi(error) && error.code === 'UNAUTHORIZED') {
+          await ejecutarInvalidacion(MENSAJE_SESION_VENCIDA);
+          return;
+        }
+        if (esErrorApi(error) && (error.code === 'FORBIDDEN' || error.code === 'NOT_FOUND')) {
+          await sesionIncompatible();
+          return;
+        }
+        throw error;
+      }
+      // Una respuesta tardia de otra sesion no reemplaza el perfil actual.
+      if (operacion !== operacionRef.current && conductorIdActualRef.current !== conductorIdActual) {
+        queryClient.removeQueries({ queryKey: queryKeys.conductor(conductorIdActual), exact: true });
+      }
+    })();
+
+    refrescoPerfilRef.current = ejecucion;
+    try {
+      await ejecucion;
+    } finally {
+      if (refrescoPerfilRef.current === ejecucion) {
+        refrescoPerfilRef.current = null;
+      }
+    }
+  }, [estado.conductorId, estado.token, ejecutarInvalidacion, queryClient, sesionIncompatible]);
+
   const value = useMemo<SessionContextValue>(
     () => ({
       status: estado.status,
@@ -285,9 +336,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       mensajeSesion: estado.mensajeSesion,
       iniciarSesion,
       restaurarSesion,
+      actualizarPerfil,
       invalidarSesion,
     }),
-    [estado, conductor, iniciarSesion, invalidarSesion, restaurarSesion]
+    [estado, conductor, iniciarSesion, actualizarPerfil, invalidarSesion, restaurarSesion]
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

@@ -98,8 +98,7 @@ export default function BienvenidaScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Quiero ser conductor"
-          accessibilityHint="El registro de conductores estará disponible en una próxima versión"
-          onPress={undefined}
+          onPress={() => router.push('/registro')}
           style={({ pressed }) => [
             styles.boton,
             styles.botonContorno,

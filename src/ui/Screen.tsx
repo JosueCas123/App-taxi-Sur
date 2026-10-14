@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import {
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   View,
@@ -38,7 +37,7 @@ export function Screen({
       keyboardShouldPersistTaps="handled"
       overScrollMode="never"
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={[styles.contenido, contentContainerStyle]}
+      contentContainerStyle={[styles.contenidoScroll, contentContainerStyle]}
     >
       {children}
     </ScrollView>
@@ -49,10 +48,7 @@ export function Screen({
   return (
     <SafeAreaView style={[styles.base, style, { backgroundColor }]}>
       {header}
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoidingView style={styles.flex} behavior="padding">
         {contenido}
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -69,6 +65,12 @@ const styles = StyleSheet.create({
   },
   contenido: {
     flex: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    gap: spacing.md,
+  },
+  contenidoScroll: {
+    flexGrow: 1,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     gap: spacing.md,
