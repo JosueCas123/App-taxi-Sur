@@ -1,10 +1,16 @@
 import { StyleSheet, Text } from 'react-native';
 
 import { Screen } from '../../ui';
+import { AppHeader } from '../../features/ui/AppHeader';
+import { BottomNav } from '../../features/ui/BottomNav';
 
 export default function PerfilScreen() {
   return (
-    <Screen contentContainerStyle={styles.contenedor}>
+    <Screen
+      header={<AppHeader />}
+      footer={<BottomNav activo="perfil" />}
+      contentContainerStyle={styles.contenedor}
+    >
       <Text style={styles.titulo}>Perfil</Text>
       <Text style={styles.cuerpo}>Datos del conductor (M03).</Text>
     </Screen>
