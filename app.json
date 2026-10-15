@@ -35,7 +35,13 @@
           "style": "dark"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "TaxiSur comparte tu ubicación con la central mientras tu jornada está activa para conectarte con solicitudes cercanas."
+        }
+      ]
     ]
   }
 }
