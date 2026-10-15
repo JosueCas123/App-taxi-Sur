@@ -101,9 +101,9 @@ describe('UbicacionScreen · ubicación lista', () => {
     expect(screen.getByText('Ubicación lista')).toBeTruthy();
     expect(screen.getByText('Compartiendo durante tu jornada.')).toBeTruthy();
 
-    await presionar('Detener');
+    await presionar('Dejar de compartir');
     expect(c.detener).toHaveBeenCalledTimes(1);
-    expect(screen.queryByLabelText('Reintentar')).toBeNull();
+    expect(screen.queryByLabelText('Reintentar compartir')).toBeNull();
   });
 });
 
@@ -126,7 +126,7 @@ describe('UbicacionScreen · motivos', () => {
     await presionar('Abrir ajustes');
     expect(abrirAjustesMock).toHaveBeenCalledTimes(1);
 
-    await presionar('Reintentar');
+    await presionar('Reintentar compartir');
     expect(c.reintentar).toHaveBeenCalledTimes(1);
   });
 

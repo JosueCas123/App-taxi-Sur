@@ -17,6 +17,7 @@ jest.mock('../../../features/auth/session-context', () => ({
     conductor: null,
     mensajeSesion: null,
   }),
+  registrarAlInvalidar: () => () => {},
 }));
 
 jest.mock('expo-location', () => ({
@@ -26,6 +27,10 @@ jest.mock('expo-location', () => ({
   hasServicesEnabledAsync: jest.fn(),
   getCurrentPositionAsync: jest.fn(),
   watchPositionAsync: jest.fn(),
+}));
+
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
 
 jest.mock('expo-router', () => {
@@ -58,7 +63,7 @@ describe('OperacionLayout · costuras M04/M05', () => {
     expect(vista.getByTestId('motivo').props.children).toBe('sin_muestra');
   });
 
-  it('monta un reconciliador de oferta por defecto (no-op) en el ámbito operativo', async () => {
+  it('monta el reconciliador real de M05 (reconciliar) en el ámbito operativo', async () => {
     const vista = await render(<OperacionLayout />);
     expect(vista.getByTestId('reconciliador').props.children).toBe('function');
   });

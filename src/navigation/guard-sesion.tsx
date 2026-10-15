@@ -4,12 +4,14 @@ import { StyleSheet, View } from 'react-native';
 
 import { RefrescoPerfilProvider } from '../features/account/use-refresco-perfil';
 import { useSession } from '../features/auth/session-context';
+import { useDriverEventsContext } from '../features/events/driver-events-provider';
 import { LoadingState } from '../ui';
 import {
   evaluarAccesoOperativo,
   pathnameCuentaPorEstado,
+  pathnameDeRuta,
+  resolverRutaOperativa,
   rutaInicialPorEstado,
-  type ServicioConfirmado,
 } from './resolve-route';
 
 function PantallaDeEspera() {
@@ -57,30 +59,44 @@ export function GuardRutaAuth({ children }: { children: ReactNode }) {
   return children;
 }
 
-// M02 no integra M05: aún no existe una fuente de servicio confirmado.
-// M05 deberá inyectar aquí la entrada producida desde la API real.
-const servicioConfirmado: ServicioConfirmado | null = null;
-
 // Bloquea el render de rutas operativas para cuentas restringidas sin servicio
 // confirmado, antes de redirigir, evitando que deep links eludan el estado.
+// La compuerta de reconciliación inicial evita decidir con datos incompletos:
+// hasta que la primera lectura no complete no se evalúa acceso ni se navega
+// (`servicioConfirmado: null` no significa "sin servicio").
 export function GuardRutaOperativa({ children }: { children: ReactNode }) {
   const { status, conductor } = useSession();
+  const { servicioConfirmado, solicitudActiva, reconciliacionInicial } =
+    useDriverEventsContext();
+  const pathname = usePathname();
+
+  const gateAbierto = reconciliacionInicial === 'completa';
 
   const acceso =
-    status === 'autenticado' && conductor
+    status === 'autenticado' && conductor && gateAbierto
       ? evaluarAccesoOperativo(conductor.estado, conductor.id, servicioConfirmado)
       : 'bloqueado_por_estado';
 
+  const rutaResuelta =
+    status === 'autenticado' && conductor && gateAbierto
+      ? resolverRutaOperativa({ conductor, solicitudActiva })
+      : null;
+
   useEffect(() => {
-    if (status !== 'autenticado' || !conductor) {
+    if (status !== 'autenticado' || !conductor || !rutaResuelta) {
       return;
     }
-    if (acceso !== 'permitido') {
-      router.replace(rutaInicialPorEstado(conductor.estado));
+    if (acceso === 'bloqueado_por_estado') {
+      router.replace(rutaResuelta);
+      return;
     }
-  }, [status, conductor, acceso]);
+    // Oferta/servicio propio: alinea la ruta con el estado reconciliado.
+    if (pathnameDeRuta(rutaResuelta) !== pathname) {
+      router.replace(rutaResuelta);
+    }
+  }, [status, conductor, acceso, rutaResuelta, pathname]);
 
-  if (status === 'autenticado' && conductor && acceso === 'permitido') {
+  if (status === 'autenticado' && conductor && acceso !== 'bloqueado_por_estado') {
     return <>{children}</>;
   }
   return <PantallaDeEspera />;
