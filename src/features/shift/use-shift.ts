@@ -82,28 +82,22 @@ export function useShift(): UseShiftResult {
     setNoConfirmado(valor);
   }, []);
 
-  // En 409: refresca el perfil real e invoca la costura de reconciliación (M05).
-  // No consulta solicitud-activa ni inventa cancelaciones. La costura no-op no desbloquea.
+  // En 409: la costura de M05 recupera perfil y solicitud activa en una sola
+  // pasada; no se dispara un `actualizarPerfil` separado (evita doble consulta).
   const manejarConflicto = useCallback(
     async (idCapturado: string, tokenCapturado: string) => {
       marcarNoConfirmado(true);
       try {
-        await actualizarPerfil();
+        await reconciliarRef.current();
       } catch {
         if (!esVigente(tokenCapturado, idCapturado)) return;
         setError(MENSAJE_NO_SINCRONIZADO);
         return;
       }
       if (!esVigente(tokenCapturado, idCapturado)) return;
-      try {
-        await reconciliarRef.current();
-      } catch {
-        // La costura de M03 es no-op; un fallo real de M05 no debe romper la pantalla.
-      }
-      if (!esVigente(tokenCapturado, idCapturado)) return;
       marcarNoConfirmado(false);
     },
-    [actualizarPerfil, esVigente, marcarNoConfirmado]
+    [esVigente, marcarNoConfirmado]
   );
 
   const ejecutar = useCallback(

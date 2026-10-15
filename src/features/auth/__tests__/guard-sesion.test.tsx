@@ -10,13 +10,31 @@ import { Text } from 'react-native';
 import { GuardRutaAuth, GuardRutaCuenta, GuardRutaOperativa, GuardRutaPrivada } from '../../../navigation/guard-sesion';
 import { rutaInicialPorEstado } from '../../../navigation/resolve-route';
 import type { ConductorDetalleDto } from '../api';
+import type { UseDriverEventsResult } from '../../events/use-driver-events';
+import type { SolicitudDetalleDto } from '../../requests/api';
 import { SessionProvider, useSession } from '../session-context';
 
 let mockPathname = '/';
+let mockEstadoEvents: UseDriverEventsResult;
+
+function eventosPrueba(parcial: Partial<UseDriverEventsResult> = {}): UseDriverEventsResult {
+  return {
+    conexion: 'conectado',
+    reconciliando: false,
+    reconciliacionInicial: 'completa',
+    solicitudActiva: null,
+    servicioConfirmado: null,
+    reconciliar: async () => {},
+    ...parcial,
+  };
+}
 
 jest.mock('expo-router', () => ({
   router: { replace: jest.fn(), back: jest.fn(), push: jest.fn() },
   usePathname: () => mockPathname,
+}));
+jest.mock('../../../features/events/driver-events-provider', () => ({
+  useDriverEventsContext: () => mockEstadoEvents,
 }));
 jest.mock('expo-secure-store', () => ({
   setItemAsync: jest.fn(),
@@ -42,6 +60,17 @@ function perfil(estado: ConductorDetalleDto['estado'] = 'aprobado'): ConductorDe
     nombreCompleto: 'Prueba', cedulaIdentidad: 'prueba', estado,
     estadoJornada: 'no_iniciada', estadoDisponibilidad: 'no_disponible',
     cierreJornadaSolicitado: false, creadoEn: '2026-01-01T00:00:00.000Z', vehiculo: null,
+  };
+}
+
+function solicitud(parcial: Partial<SolicitudDetalleDto> = {}): SolicitudDetalleDto {
+  return {
+    id: 'solicitud-1', pasajeroId: 'pasajero-1', conductorAsignadoId: 'conductor-a',
+    estado: 'esperando_respuesta', latitudRecogida: -17.78, longitudRecogida: -63.18,
+    destino: 'Centro', puntoRecogidaTexto: 'Plaza', expiraEn: null, aceptadaEn: null,
+    finalizadaEn: null, creadoEn: '2026-10-15T12:00:00.000Z',
+    pasajero: { id: 'pasajero-1', nombre: 'Ana' }, conductorAsignado: null,
+    distanciaAproximadaKm: 1, ...parcial,
   };
 }
 
@@ -78,6 +107,7 @@ function montarAuth() {
 beforeEach(() => {
   jest.resetAllMocks();
   mockPathname = '/';
+  mockEstadoEvents = eventosPrueba();
   almacenado = jwt();
   client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   fetchMock = jest.fn<typeof fetch>();
@@ -171,16 +201,29 @@ describe('GuardRutaAuth ((auth))', () => {
 });
 
 describe('GuardRutaOperativa ((operacion))', () => {
+  function SondaSesion() {
+    const { status } = useSession();
+    return <Text testID="sesion">{status}</Text>;
+  }
+
   function montarOperativa() {
     return render(
-      <GuardRutaOperativa>
-        <Text testID="ruta-operativa">operacion</Text>
-      </GuardRutaOperativa>,
+      <>
+        <SondaSesion />
+        <GuardRutaOperativa>
+          <Text testID="ruta-operativa">operacion</Text>
+        </GuardRutaOperativa>
+      </>,
       { wrapper: ({ children }) => envolver(children) }
     );
   }
 
+  function estadoSesion() {
+    return screen.getByTestId('sesion').props.children;
+  }
+
   it('aprobado renderiza el contenido operativo sin navegar', async () => {
+    mockPathname = '/inicio';
     fetchMock.mockResolvedValue(respuesta(perfil('aprobado')));
     await montarOperativa();
     expect(await screen.findByTestId('ruta-operativa')).toBeTruthy();
@@ -196,6 +239,75 @@ describe('GuardRutaOperativa ((operacion))', () => {
       expect(screen.queryByTestId('ruta-operativa')).toBeNull();
     }
   );
+
+  it('mientras la reconciliación inicial sigue pendiente no evalúa acceso ni navega', async () => {
+    mockEstadoEvents = eventosPrueba({ reconciliacionInicial: 'pendiente' });
+    fetchMock.mockResolvedValue(respuesta(perfil('aprobado')));
+    await montarOperativa();
+    await waitFor(() => expect(estadoSesion()).toBe('autenticado'));
+    expect(screen.queryByTestId('ruta-operativa')).toBeNull();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it('tras una reconciliación fallida permanece en espera sin navegar', async () => {
+    mockEstadoEvents = eventosPrueba({ reconciliacionInicial: 'fallida' });
+    fetchMock.mockResolvedValue(respuesta(perfil('suspendido')));
+    await montarOperativa();
+    await waitFor(() => expect(estadoSesion()).toBe('autenticado'));
+    expect(screen.queryByTestId('ruta-operativa')).toBeNull();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it('una cuenta suspendida con servicio en_servicio propio no se bloquea y va a en-servicio', async () => {
+    mockPathname = '/inicio';
+    mockEstadoEvents = eventosPrueba({
+      solicitudActiva: solicitud({ estado: 'en_servicio' }),
+      servicioConfirmado: {
+        id: 'solicitud-1',
+        conductorAsignadoId: 'conductor-a',
+        estado: 'en_servicio',
+      },
+    });
+    fetchMock.mockResolvedValue(respuesta(perfil('suspendido')));
+    await montarOperativa();
+    expect(await screen.findByTestId('ruta-operativa')).toBeTruthy();
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/(operacion)/en-servicio'));
+  });
+
+  it('una oferta propia esperando_respuesta navega a solicitud-entrante', async () => {
+    mockPathname = '/inicio';
+    mockEstadoEvents = eventosPrueba({
+      solicitudActiva: solicitud({ estado: 'esperando_respuesta' }),
+    });
+    fetchMock.mockResolvedValue(respuesta(perfil('aprobado')));
+    await montarOperativa();
+    expect(await screen.findByTestId('ruta-operativa')).toBeTruthy();
+    await waitFor(() =>
+      expect(router.replace).toHaveBeenCalledWith('/(operacion)/solicitud-entrante')
+    );
+  });
+
+  it('una oferta no asignada al conductor no navega a solicitud-entrante', async () => {
+    mockPathname = '/inicio';
+    mockEstadoEvents = eventosPrueba({
+      solicitudActiva: solicitud({
+        estado: 'esperando_respuesta',
+        conductorAsignadoId: 'otro-conductor',
+      }),
+    });
+    fetchMock.mockResolvedValue(respuesta(perfil('aprobado')));
+    await montarOperativa();
+    expect(await screen.findByTestId('ruta-operativa')).toBeTruthy();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it('en la ruta resuelta no vuelve a navegar', async () => {
+    mockPathname = '/inicio';
+    fetchMock.mockResolvedValue(respuesta(perfil('aprobado')));
+    await montarOperativa();
+    expect(await screen.findByTestId('ruta-operativa')).toBeTruthy();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
 
   it('sin sesión no renderiza contenido operativo y el guard de sesión redirige', async () => {
     almacenado = null;

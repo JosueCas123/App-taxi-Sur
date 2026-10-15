@@ -1,6 +1,7 @@
 import type { Href } from 'expo-router';
 
 import type { ConductorDetalleDto } from '../features/auth/api';
+import type { SolicitudDetalleDto } from '../features/requests/api';
 
 // Entrada mínima de la política. M05 deberá producirla a partir de una
 // respuesta real, vigente y del conductor y generación de sesión actuales.
@@ -62,4 +63,46 @@ export function evaluarAccesoOperativo(
 
   // Cuentas restringidas: solo continuidad/finalización con servicio confirmado propio.
   return servicioConfirmado ? 'solo_finalizar' : 'bloqueado_por_estado';
+}
+
+// Estado operativo ya reconciliado con datos reales del conductor autenticado.
+export type EstadoOperativoConfirmado = {
+  conductor: ConductorDetalleDto;
+  solicitudActiva: SolicitudDetalleDto | null;
+};
+
+// Decide la ruta operativa a partir del estado reconciliado. Se invoca **solo**
+// cuando la reconciliación inicial completó (nunca con datos incompletos).
+// Toda oferta/servicio valida `conductorAsignadoId === conductor.id` antes de
+// navegar: una solicitud no asignada al conductor autenticado se ignora.
+export function resolverRutaOperativa(estado: EstadoOperativoConfirmado): Href {
+  const { conductor, solicitudActiva } = estado;
+
+  const esPropia =
+    solicitudActiva !== null && solicitudActiva.conductorAsignadoId === conductor.id;
+
+  // Servicio propio en curso: continuidad aunque la cuenta esté restringida.
+  if (esPropia && solicitudActiva.estado === 'en_servicio') {
+    return '/(operacion)/en-servicio';
+  }
+
+  if (conductor.estado !== 'aprobado') {
+    return rutaInicialPorEstado(conductor.estado);
+  }
+
+  // Oferta propia esperando respuesta: solo navega si la asignación coincide.
+  if (esPropia && solicitudActiva.estado === 'esperando_respuesta') {
+    return '/(operacion)/solicitud-entrante';
+  }
+
+  return '/(operacion)/inicio';
+}
+
+// expo-router omite los grupos de la URL: '/(operacion)/inicio' → '/inicio'.
+// Permite comparar la ruta resuelta con el pathname visible.
+export function pathnameDeRuta(href: Href): string {
+  const limpio = String(href)
+    .replace(/\([^)]*\)/g, '')
+    .replace(/\/{2,}/g, '/');
+  return limpio.startsWith('/') ? limpio : `/${limpio}`;
 }

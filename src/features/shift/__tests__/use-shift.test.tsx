@@ -257,8 +257,14 @@ describe('useShift · mutaciones y caché', () => {
 });
 
 describe('useShift · 409 y reconciliación', () => {
-  it('ante 409 muestra el conflicto, refresca el perfil e invoca la costura sin desbloquear si sigue inválida', async () => {
-    const reconciliador = jest.fn<ReconciliadorOferta>(async () => {});
+  it('ante 409 invoca la costura una sola vez, sin recuperación de perfil separada', async () => {
+    const reconciliador = jest.fn<ReconciliadorOferta>(async () => {
+      // La costura de M05 recupera el estado real (incluido el perfil).
+      client.setQueryData(
+        queryKeys.conductor('conductor-a'),
+        perfil({ estadoJornada: 'no_iniciada' })
+      );
+    });
     await montarAutenticado({ valor: UBICACION_LISTA, reconciliador });
     fetchMock.mockResolvedValueOnce(
       respuesta(perfil({ estadoJornada: 'activa', estadoDisponibilidad: 'disponible' }))
@@ -266,56 +272,55 @@ describe('useShift · 409 y reconciliación', () => {
     await presionar('iniciar');
     await waitFor(() => expect(estado('permitido')).toBe('true'));
 
-    // La activación devuelve 409; el refresco trae una jornada no activa.
-    fetchMock
-      .mockResolvedValueOnce(
-        respuesta({ error: { code: 'INVALID_STATE_TRANSITION', message: 'conflicto' } }, 409)
-      )
-      .mockResolvedValueOnce(respuesta(perfil({ estadoJornada: 'no_iniciada' })));
+    // La activación devuelve 409; el estado real lo recupera la costura de M05.
+    fetchMock.mockResolvedValueOnce(
+      respuesta({ error: { code: 'INVALID_STATE_TRANSITION', message: 'conflicto' } }, 409)
+    );
 
     await presionar('activar');
 
     await waitFor(() => expect(estado('conflicto')).not.toBe('sin-conflicto'));
     expect(reconciliador).toHaveBeenCalledTimes(1);
+    // Sin doble consulta: tras el 409 no sale ninguna petición de perfil de M03.
+    expect(fetchMock).toHaveBeenCalledTimes(3); // restauración + iniciar + activar(409)
     expect(estado('no-confirmado')).toBe('false');
     expect(estado('permitido')).toBe('false');
     expect(estado('motivo')).toBe('jornada_no_activa');
   });
 
-  it('tras un 409 con reconciliador no-op, el perfil recuperado válido vuelve a habilitar la acción', async () => {
-    await montarAutenticado({ valor: UBICACION_LISTA });
+  it('tras un 409 con costura no-op, el perfil vigente vuelve a habilitar la acción', async () => {
+    const reconciliador = jest.fn<ReconciliadorOferta>(async () => {});
+    await montarAutenticado({ valor: UBICACION_LISTA, reconciliador });
     fetchMock.mockResolvedValueOnce(
       respuesta(perfil({ estadoJornada: 'activa', estadoDisponibilidad: 'no_disponible' }))
     );
     await presionar('iniciar');
     await waitFor(() => expect(estado('permitido')).toBe('true'));
 
-    fetchMock
-      .mockResolvedValueOnce(
-        respuesta({ error: { code: 'INVALID_STATE_TRANSITION', message: 'conflicto' } }, 409)
-      )
-      .mockResolvedValueOnce(
-        respuesta(perfil({ estadoJornada: 'activa', estadoDisponibilidad: 'no_disponible' }))
-      );
+    fetchMock.mockResolvedValueOnce(
+      respuesta({ error: { code: 'INVALID_STATE_TRANSITION', message: 'conflicto' } }, 409)
+    );
 
     await presionar('activar');
 
     await waitFor(() => expect(estado('conflicto')).not.toBe('sin-conflicto'));
+    expect(reconciliador).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(estado('no-confirmado')).toBe('false'));
     expect(estado('permitido')).toBe('true');
   });
 
-  it('si el refresco tras 409 falla, queda no confirmado, avisa y permite reintentar', async () => {
-    await montarAutenticado({ valor: UBICACION_LISTA });
+  it('si la costura tras 409 falla, queda no confirmado, avisa y permite reintentar', async () => {
+    const reconciliador = jest.fn<ReconciliadorOferta>(async () => {
+      throw new TypeError('Network request failed');
+    });
+    await montarAutenticado({ valor: UBICACION_LISTA, reconciliador });
     fetchMock.mockResolvedValueOnce(respuesta(perfil({ estadoJornada: 'activa' })));
     await presionar('iniciar');
     await waitFor(() => expect(estado('conductor')).toBe('activa'));
 
-    fetchMock
-      .mockResolvedValueOnce(
-        respuesta({ error: { code: 'INVALID_STATE_TRANSITION', message: 'conflicto' } }, 409)
-      )
-      .mockRejectedValueOnce(new TypeError('Network request failed'));
+    fetchMock.mockResolvedValueOnce(
+      respuesta({ error: { code: 'INVALID_STATE_TRANSITION', message: 'conflicto' } }, 409)
+    );
 
     await presionar('activar');
 
