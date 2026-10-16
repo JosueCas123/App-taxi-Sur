@@ -5,6 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import { RefrescoPerfilProvider } from '../features/account/use-refresco-perfil';
 import { useSession } from '../features/auth/session-context';
 import { useDriverEventsContext } from '../features/events/driver-events-provider';
+import { useAhoraServidorMs } from '../features/requests/use-offer-deadline';
 import { LoadingState } from '../ui';
 import {
   evaluarAccesoOperativo,
@@ -66,9 +67,18 @@ export function GuardRutaAuth({ children }: { children: ReactNode }) {
 // (`servicioConfirmado: null` no significa "sin servicio").
 export function GuardRutaOperativa({ children }: { children: ReactNode }) {
   const { status, conductor } = useSession();
-  const { servicioConfirmado, solicitudActiva, reconciliacionInicial } =
-    useDriverEventsContext();
+  const {
+    servicioConfirmado,
+    solicitudActiva,
+    reconciliacionInicial,
+    fechaServidorSolicitud,
+    ofertaDescartadaId,
+  } = useDriverEventsContext();
   const pathname = usePathname();
+
+  // Mismo reloj estimado que la pantalla: desfase estable desde la cabecera
+  // Date, aplicado al reloj local para orientar la navegación de expiración.
+  const ahoraServidorMs = useAhoraServidorMs(fechaServidorSolicitud, Date.now);
 
   const gateAbierto = reconciliacionInicial === 'completa';
 
@@ -79,7 +89,7 @@ export function GuardRutaOperativa({ children }: { children: ReactNode }) {
 
   const rutaResuelta =
     status === 'autenticado' && conductor && gateAbierto
-      ? resolverRutaOperativa({ conductor, solicitudActiva })
+      ? resolverRutaOperativa({ conductor, solicitudActiva }, ahoraServidorMs, ofertaDescartadaId)
       : null;
 
   useEffect(() => {

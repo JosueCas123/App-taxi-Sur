@@ -21,6 +21,9 @@ function eventosPrueba(conexion: UseDriverEventsResult['conexion']): UseDriverEv
     solicitudActiva: null,
     servicioConfirmado: null,
     reconciliar: async () => {},
+    fechaServidorSolicitud: null,
+    ofertaDescartadaId: null,
+    descartarOfertaVencida: () => {},
   };
 }
 

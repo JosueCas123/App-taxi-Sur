@@ -33,14 +33,17 @@ export function servicioConfirmadoDe(
 // Recupera en una sola pasada el perfil y la solicitud activa. Ambas lecturas se
 // piden al mismo tiempo, una única vez por ciclo (el flujo de 409 reutiliza esta
 // recuperación y no dispara un `actualizarPerfil` separado).
+// El callback opcional se reenvía a la lectura de solicitud-activa para capturar
+// la cabecera HTTP Date.
 export async function recuperarInstantaneaOperativa(
   conductorId: string,
   token: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onFechaServidor?: (fechaServidor: string | null) => void
 ): Promise<InstantaneaOperativa> {
   const [conductor, solicitudActiva] = await Promise.all([
     obtenerConductor(conductorId, token, signal),
-    obtenerSolicitudActiva(conductorId, token, signal),
+    obtenerSolicitudActiva(conductorId, token, signal, onFechaServidor),
   ]);
   return { conductor, solicitudActiva };
 }

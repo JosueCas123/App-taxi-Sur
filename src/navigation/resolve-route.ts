@@ -71,11 +71,32 @@ export type EstadoOperativoConfirmado = {
   solicitudActiva: SolicitudDetalleDto | null;
 };
 
+// Mejor-esfuerzo local: `expiraEn` null se considera vigente; con plazo, solo si
+// `expiraEn` es posterior a `ahoraServidorMs`. Orienta a qué pantalla navegar;
+// no cambia lo que el backend aceptará. Una fecha no parseable cuenta como vencida.
+export function ofertaVigente(
+  solicitud: SolicitudDetalleDto,
+  ahoraServidorMs: number
+): boolean {
+  if (solicitud.expiraEn === null) {
+    return true;
+  }
+  const expiraMs = Date.parse(solicitud.expiraEn);
+  return !Number.isNaN(expiraMs) && expiraMs > ahoraServidorMs;
+}
+
 // Decide la ruta operativa a partir del estado reconciliado. Se invoca **solo**
 // cuando la reconciliación inicial completó (nunca con datos incompletos).
 // Toda oferta/servicio valida `conductorAsignadoId === conductor.id` antes de
 // navegar: una solicitud no asignada al conductor autenticado se ignora.
-export function resolverRutaOperativa(estado: EstadoOperativoConfirmado): Href {
+// `ahoraServidorMs` (por defecto, el reloj local) orienta la vigencia local de
+// la oferta; `ofertaDescartadaId` trata como ausente la oferta vencida que el
+// conductor ya descartó, evitando el bucle solicitud-expirada → inicio.
+export function resolverRutaOperativa(
+  estado: EstadoOperativoConfirmado,
+  ahoraServidorMs: number = Date.now(),
+  ofertaDescartadaId: string | null = null
+): Href {
   const { conductor, solicitudActiva } = estado;
 
   const esPropia =
@@ -92,7 +113,13 @@ export function resolverRutaOperativa(estado: EstadoOperativoConfirmado): Href {
 
   // Oferta propia esperando respuesta: solo navega si la asignación coincide.
   if (esPropia && solicitudActiva.estado === 'esperando_respuesta') {
-    return '/(operacion)/solicitud-entrante';
+    // Oferta ya descartada por el conductor: se trata como ausente.
+    if (ofertaDescartadaId !== null && solicitudActiva.id === ofertaDescartadaId) {
+      return '/(operacion)/inicio';
+    }
+    return ofertaVigente(solicitudActiva, ahoraServidorMs)
+      ? '/(operacion)/solicitud-entrante'
+      : '/(operacion)/solicitud-expirada';
   }
 
   return '/(operacion)/inicio';

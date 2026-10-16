@@ -22,6 +22,14 @@ export type UseDriverEventsResult = {
   solicitudActiva: SolicitudDetalleDto | null;
   servicioConfirmado: ServicioConfirmado | null;
   reconciliar: () => Promise<void>;
+  // Cabecera HTTP Date cruda de la última lectura de solicitud-activa (en
+  // memoria, por sesión/conductor). Se limpia al cambiar de sesión o perder la
+  // conexión; la siguiente lectura exitosa la reestima. No se limpia al reconciliar.
+  fechaServidorSolicitud: string | null;
+  // Oferta vencida que el conductor ya descartó con "Volver a mi jornada". Se
+  // limpia cuando la reconciliación deja de devolver esa oferta o cambia la sesión.
+  ofertaDescartadaId: string | null;
+  descartarOfertaVencida: (solicitudId: string) => void;
 };
 
 export type OpcionesDriverEvents = {
@@ -51,6 +59,8 @@ export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverE
     useState<EstadoReconciliacion>('pendiente');
   const [solicitudActiva, setSolicitudActiva] = useState<SolicitudDetalleDto | null>(null);
   const [servicioConfirmado, setServicioConfirmado] = useState<ServicioConfirmado | null>(null);
+  const [fechaServidorSolicitud, setFechaServidorSolicitud] = useState<string | null>(null);
+  const [ofertaDescartadaId, setOfertaDescartadaId] = useState<string | null>(null);
 
   const montadoRef = useRef(true);
   // Generación de sesión/conductor: descarta respuestas y eventos previos.
@@ -60,6 +70,8 @@ export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverE
   const sesionRef = useRef<{ token: string; conductorId: string } | null>(null);
   const invalidarRef = useRef(invalidarSesion);
   const fetchImplRef = useRef(opciones.fetchImpl);
+  // Espejo en ref del descarte: `reconciliar` (estable) lo lee sin depender del estado.
+  const ofertaDescartadaRef = useRef<string | null>(null);
 
   // Ciclo de conexión SSE: el AbortController lo posee este hook.
   const conexionRef = useRef<ConexionSse | null>(null);
@@ -96,7 +108,16 @@ export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverE
         const conductorIdActual = conductorIdRef.current;
         if (!tokenActual || !conductorIdActual) break;
         try {
-          const instantanea = await recuperarInstantaneaOperativa(conductorIdActual, tokenActual);
+          const instantanea = await recuperarInstantaneaOperativa(
+            conductorIdActual,
+            tokenActual,
+            undefined,
+            (fechaServidor) => {
+              if (generacionRef.current === generacion && montadoRef.current) {
+                setFechaServidorSolicitud(fechaServidor);
+              }
+            }
+          );
           if (generacionRef.current !== generacion) {
             // Respuesta de otra sesión/conductor: no se aplica, pero deja
             // correr la relanzada que la nueva generación ya pidió.
@@ -105,6 +126,15 @@ export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverE
           if (!montadoRef.current) break;
           setSolicitudActiva(instantanea.solicitudActiva);
           setServicioConfirmado(servicioConfirmadoDe(instantanea));
+          // El descarte solo se limpia cuando la reconciliación deja de devolver
+          // esa misma oferta (o cambia la sesión, resuelto en su efecto).
+          if (
+            ofertaDescartadaRef.current !== null &&
+            instantanea.solicitudActiva?.id !== ofertaDescartadaRef.current
+          ) {
+            ofertaDescartadaRef.current = null;
+            setOfertaDescartadaId(null);
+          }
           setReconciliacionInicial('completa');
         } catch (error) {
           if (generacionRef.current !== generacion) continue;
@@ -124,6 +154,13 @@ export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverE
       enVueloRef.current = false;
       if (montadoRef.current) setReconciliando(false);
     }
+  }, []);
+
+  // "Volver a mi jornada": registra la oferta vencida descartada en memoria para
+  // que el guard la trate como ausente mientras el backend siga devolviéndola.
+  const descartarOfertaVencida = useCallback((solicitudId: string) => {
+    ofertaDescartadaRef.current = solicitudId;
+    setOfertaDescartadaId(solicitudId);
   }, []);
 
   useEffect(() => {
@@ -154,6 +191,10 @@ export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverE
 
     if (!token || !conductorId) {
       sesionRef.current = null;
+      ofertaDescartadaRef.current = null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sesión cerrada: limpia el desfase y el descarte en memoria
+      setFechaServidorSolicitud(null);
+      setOfertaDescartadaId(null);
       detenerCiclo();
       return;
     }
@@ -164,9 +205,11 @@ export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverE
 
     fallosRef.current = 0;
     pistaRetryRef.current = null;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- cambio de sesión/conductor: reinicia la compuerta antes de abrir el stream de la cuenta nueva
     setConexion('iniciando');
     setReconciliacionInicial('pendiente');
+    ofertaDescartadaRef.current = null;
+    setFechaServidorSolicitud(null);
+    setOfertaDescartadaId(null);
     setSolicitudActiva(null);
     setServicioConfirmado(null);
 
@@ -225,6 +268,9 @@ export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverE
       controladorRef.current = null;
       conectadoRef.current = false;
       setConexion('perdida');
+      // Al perder la conexión se descarta el desfase estimado; la próxima
+      // lectura exitosa de solicitud-activa lo reestima.
+      setFechaServidorSolicitud(null);
       if (motivo === 'no_autorizado') {
         // 401/403 delegan al manejo de sesión: sin backoff.
         void invalidarRef.current();
@@ -272,6 +318,9 @@ export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverE
       solicitudActiva,
       servicioConfirmado,
       reconciliar,
+      fechaServidorSolicitud,
+      ofertaDescartadaId,
+      descartarOfertaVencida,
     }),
     [
       conexion,
@@ -280,6 +329,9 @@ export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverE
       solicitudActiva,
       servicioConfirmado,
       reconciliar,
+      fechaServidorSolicitud,
+      ofertaDescartadaId,
+      descartarOfertaVencida,
     ]
   );
 }

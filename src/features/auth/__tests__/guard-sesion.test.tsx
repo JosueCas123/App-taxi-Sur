@@ -25,6 +25,9 @@ function eventosPrueba(parcial: Partial<UseDriverEventsResult> = {}): UseDriverE
     solicitudActiva: null,
     servicioConfirmado: null,
     reconciliar: async () => {},
+    fechaServidorSolicitud: null,
+    ofertaDescartadaId: null,
+    descartarOfertaVencida: () => {},
     ...parcial,
   };
 }
@@ -294,6 +297,66 @@ describe('GuardRutaOperativa ((operacion))', () => {
         estado: 'esperando_respuesta',
         conductorAsignadoId: 'otro-conductor',
       }),
+    });
+    fetchMock.mockResolvedValue(respuesta(perfil('aprobado')));
+    await montarOperativa();
+    expect(await screen.findByTestId('ruta-operativa')).toBeTruthy();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it('una oferta propia vencida navega a solicitud-expirada', async () => {
+    mockPathname = '/inicio';
+    mockEstadoEvents = eventosPrueba({
+      solicitudActiva: solicitud({
+        estado: 'esperando_respuesta',
+        expiraEn: '2020-01-01T00:00:00.000Z',
+      }),
+    });
+    fetchMock.mockResolvedValue(respuesta(perfil('aprobado')));
+    await montarOperativa();
+    expect(await screen.findByTestId('ruta-operativa')).toBeTruthy();
+    await waitFor(() =>
+      expect(router.replace).toHaveBeenCalledWith('/(operacion)/solicitud-expirada')
+    );
+  });
+
+  it('estando ya en solicitud-expirada con la oferta vencida no revierte (no re-navega)', async () => {
+    mockPathname = '/solicitud-expirada';
+    mockEstadoEvents = eventosPrueba({
+      solicitudActiva: solicitud({
+        estado: 'esperando_respuesta',
+        expiraEn: '2020-01-01T00:00:00.000Z',
+      }),
+    });
+    fetchMock.mockResolvedValue(respuesta(perfil('aprobado')));
+    await montarOperativa();
+    expect(await screen.findByTestId('ruta-operativa')).toBeTruthy();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it('tras descartar la oferta vencida el guard permanece en inicio y no vuelve a expirada', async () => {
+    mockPathname = '/solicitud-expirada';
+    mockEstadoEvents = eventosPrueba({
+      solicitudActiva: solicitud({
+        estado: 'esperando_respuesta',
+        expiraEn: '2020-01-01T00:00:00.000Z',
+      }),
+      ofertaDescartadaId: 'solicitud-1',
+    });
+    fetchMock.mockResolvedValue(respuesta(perfil('aprobado')));
+    await montarOperativa();
+    expect(await screen.findByTestId('ruta-operativa')).toBeTruthy();
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/(operacion)/inicio'));
+  });
+
+  it('con la oferta descartada ya en inicio no vuelve a navegar', async () => {
+    mockPathname = '/inicio';
+    mockEstadoEvents = eventosPrueba({
+      solicitudActiva: solicitud({
+        estado: 'esperando_respuesta',
+        expiraEn: '2020-01-01T00:00:00.000Z',
+      }),
+      ofertaDescartadaId: 'solicitud-1',
     });
     fetchMock.mockResolvedValue(respuesta(perfil('aprobado')));
     await montarOperativa();

@@ -2,12 +2,15 @@ import { runtimeConfig } from '../config/runtime';
 
 import { crearApiError, type ApiError, type ApiErrorCode } from './api-errors';
 
-type ApiRequestOptions = {
+export type ApiRequestOptions = {
   metodo?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   cuerpo?: unknown;
   token?: string;
   timeoutMs?: number;
   signal?: AbortSignal;
+  // Se invoca con `respuesta.headers.get('Date')` tras una respuesta OK; el
+  // valor crudo puede no ser ISO (formato HTTP) y null si la cabecera falta.
+  capturarFechaServidor?: (fechaServidor: string | null) => void;
 };
 
 const TIEMPO_POR_DEFECTO_MS = 15000;
@@ -48,7 +51,14 @@ function parsearErrorBackend(datos: unknown): { code?: string; message?: string 
 }
 
 export async function apiRequest<T>(ruta: string, opciones: ApiRequestOptions = {}): Promise<T> {
-  const { metodo = 'GET', cuerpo, token, timeoutMs, signal } = opciones;
+  const {
+    metodo = 'GET',
+    cuerpo,
+    token,
+    timeoutMs,
+    signal,
+    capturarFechaServidor,
+  } = opciones;
 
   if (!runtimeConfig.apiUrl) {
     throw crearApiError({
@@ -135,6 +145,14 @@ export async function apiRequest<T>(ruta: string, opciones: ApiRequestOptions = 
       backendCode: errorBackend.code,
       message: errorBackend.message ?? 'Error inesperado en el servidor',
     });
+  }
+
+  if (capturarFechaServidor) {
+    try {
+      capturarFechaServidor(respuesta.headers.get('Date'));
+    } catch {
+      // No interrumpir la solicitud si no se puede leer la cabecera Date
+    }
   }
 
   return datos as T;
