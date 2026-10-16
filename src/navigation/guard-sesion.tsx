@@ -9,9 +9,11 @@ import { useAhoraServidorMs } from '../features/requests/use-offer-deadline';
 import { LoadingState } from '../ui';
 import {
   evaluarAccesoOperativo,
+  esRutaTabOperativa,
   pathnameCuentaPorEstado,
   pathnameDeRuta,
   resolverRutaOperativa,
+  RUTA_OPERATIVA_NEUTRA,
   rutaInicialPorEstado,
 } from './resolve-route';
 
@@ -100,8 +102,15 @@ export function GuardRutaOperativa({ children }: { children: ReactNode }) {
       router.replace(rutaResuelta);
       return;
     }
+    // Las pestañas operativas (inicio/ubicación/mi cuenta) se recorren con
+    // libertad mientras la ruta resuelta sea el neutro `inicio`. Cualquier
+    // oferta/servicio (o un estado de cuenta) que resuelva otra ruta sí alinea
+    // la navegación y expulsa de la pestaña.
+    const rutaResueltaPath = pathnameDeRuta(rutaResuelta);
+    const enTabLibre =
+      rutaResueltaPath === pathnameDeRuta(RUTA_OPERATIVA_NEUTRA) && esRutaTabOperativa(pathname);
     // Oferta/servicio propio: alinea la ruta con el estado reconciliado.
-    if (pathnameDeRuta(rutaResuelta) !== pathname) {
+    if (!enTabLibre && rutaResueltaPath !== pathname) {
       router.replace(rutaResuelta);
     }
   }, [status, conductor, acceso, rutaResuelta, pathname]);

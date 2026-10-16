@@ -7,8 +7,6 @@ import { colors, spacing } from '../../../theme/tokens';
 import { Button, Card, ErrorBanner, LoadingState, Screen, StateBadge } from '../../../ui';
 import type { BadgeTone } from '../../../ui/StateBadge';
 import type { MotivoUbicacionNoLista } from '../../shift/ubicacion-operativa';
-import { AppHeader } from '../../ui/AppHeader';
-import { BottomNav } from '../../ui/BottomNav';
 import { EstadoUbicacionDesactualizada } from '../components/EstadoUbicacionDesactualizada';
 import { abrirAjustes } from '../location-service';
 import { useLocationSharing } from '../location-sharing-provider';
@@ -164,8 +162,7 @@ export function UbicacionScreen() {
   return (
     <Screen
       scroll
-      header={<AppHeader />}
-      footer={<BottomNav activo="ubicacion" />}
+      edges={['left', 'right']}
       contentContainerStyle={styles.contenido}
     >
       <View style={styles.orb}>

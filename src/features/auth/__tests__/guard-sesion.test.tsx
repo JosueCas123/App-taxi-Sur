@@ -372,6 +372,30 @@ describe('GuardRutaOperativa ((operacion))', () => {
     expect(router.replace).not.toHaveBeenCalled();
   });
 
+  it.each(['/ubicacion', '/perfil'])(
+    'con el neutro resuelto puede permanecer en la pestaña %s sin revertir',
+    async (pathname) => {
+      mockPathname = pathname;
+      fetchMock.mockResolvedValue(respuesta(perfil('aprobado')));
+      await montarOperativa();
+      expect(await screen.findByTestId('ruta-operativa')).toBeTruthy();
+      expect(router.replace).not.toHaveBeenCalled();
+    }
+  );
+
+  it('una oferta propia vigente expulsa de la pestaña de ubicación hacia solicitud-entrante', async () => {
+    mockPathname = '/ubicacion';
+    mockEstadoEvents = eventosPrueba({
+      solicitudActiva: solicitud({ estado: 'esperando_respuesta' }),
+    });
+    fetchMock.mockResolvedValue(respuesta(perfil('aprobado')));
+    await montarOperativa();
+    expect(await screen.findByTestId('ruta-operativa')).toBeTruthy();
+    await waitFor(() =>
+      expect(router.replace).toHaveBeenCalledWith('/(operacion)/solicitud-entrante')
+    );
+  });
+
   it('sin sesión no renderiza contenido operativo y el guard de sesión redirige', async () => {
     almacenado = null;
     await render(

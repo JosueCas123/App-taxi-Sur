@@ -125,6 +125,19 @@ export function resolverRutaOperativa(
   return '/(operacion)/inicio';
 }
 
+// Ruta neutra del grupo operativo: destino por defecto cuando no hay oferta ni
+// servicio que fuerce otra pantalla. Sirve de referencia para decidir si el
+// conductor puede recorrer libremente las pestañas.
+export const RUTA_OPERATIVA_NEUTRA: Href = '/(operacion)/inicio';
+
+// Pathnames visibles de las pestañas operativas. Con la ruta resuelta en el
+// neutro, el conductor puede moverse entre ellas sin que el guard lo devuelva.
+export const RUTAS_TAB_OPERATIVA: readonly string[] = ['/inicio', '/ubicacion', '/perfil'];
+
+export function esRutaTabOperativa(pathname: string): boolean {
+  return RUTAS_TAB_OPERATIVA.includes(pathname);
+}
+
 // expo-router omite los grupos de la URL: '/(operacion)/inicio' → '/inicio'.
 // Permite comparar la ruta resuelta con el pathname visible.
 export function pathnameDeRuta(href: Href): string {

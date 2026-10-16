@@ -3,8 +3,6 @@ import Svg, { Circle, Path } from 'react-native-svg';
 
 import { colors, spacing } from '../../../theme/tokens';
 import { ErrorBanner, LoadingState, Screen } from '../../../ui';
-import { AppHeader } from '../../ui/AppHeader';
-import { BottomNav } from '../../ui/BottomNav';
 import { accionDisponibilidad, accionJornada } from '../jornada-policy';
 import { useShift } from '../use-shift';
 import { DisponibilidadCard } from '../components/DisponibilidadCard';
@@ -31,7 +29,7 @@ export function HomeScreen() {
 
   if (!conductor) {
     return (
-      <Screen header={<AppHeader />} footer={<BottomNav activo="inicio" />}>
+      <Screen edges={['left', 'right']}>
         <LoadingState label="Cargando tu jornada…" />
       </Screen>
     );
@@ -50,8 +48,7 @@ export function HomeScreen() {
   return (
     <Screen
       scroll
-      header={<AppHeader />}
-      footer={<BottomNav activo="inicio" />}
+      edges={['left', 'right']}
       refreshing={refrescando}
       onRefresh={refrescar}
       contentContainerStyle={styles.contenido}

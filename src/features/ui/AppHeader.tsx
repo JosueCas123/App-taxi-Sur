@@ -62,7 +62,7 @@ export function AppHeader() {
         accessibilityRole="button"
         accessibilityLabel="Ver mi cuenta"
         hitSlop={8}
-        onPress={() => router.push('/(operacion)/perfil')}
+        onPress={() => router.navigate('/(operacion)/perfil')}
         style={({ pressed }) => [styles.avatar, pressed && styles.avatarPresionado]}
       >
         <Text style={styles.avatarTexto}>{iniciales}</Text>

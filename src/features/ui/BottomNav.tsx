@@ -1,4 +1,4 @@
-import { router, type Href } from 'expo-router';
+import { router, usePathname, type Href } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
@@ -6,6 +6,12 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { colors, minTouchTarget } from '../../theme/tokens';
 
 export type SeccionOperacion = 'inicio' | 'ubicacion' | 'perfil';
+
+const SECCION_POR_PATHNAME: Record<string, SeccionOperacion> = {
+  '/inicio': 'inicio',
+  '/ubicacion': 'ubicacion',
+  '/perfil': 'perfil',
+};
 
 type IconoProps = { color: string; grosor: number };
 
@@ -64,8 +70,10 @@ const ITEMS: {
   { seccion: 'perfil', href: '/(operacion)/perfil', etiqueta: 'Mi cuenta', Icono: IconoCuenta },
 ];
 
-export function BottomNav({ activo }: { activo: SeccionOperacion }) {
+export function BottomNav() {
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const activo = SECCION_POR_PATHNAME[pathname] ?? 'inicio';
 
   return (
     <View
@@ -83,7 +91,7 @@ export function BottomNav({ activo }: { activo: SeccionOperacion }) {
             accessibilityLabel={etiqueta}
             onPress={() => {
               if (!seleccionado) {
-                router.replace(href);
+                router.navigate(href);
               }
             }}
             style={({ pressed }) => [
