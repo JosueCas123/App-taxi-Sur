@@ -1,7 +1,8 @@
-import { expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import type { Href } from 'expo-router';
 
 import {
+  ofertaVigente,
   pathnameDeRuta,
   resolverRutaOperativa,
   rutaInicialPorEstado,
@@ -106,7 +107,8 @@ it('una cuenta suspendida con servicio en_servicio propio no se bloquea', () => 
 it('una oferta esperando_respuesta asignada al conductor navega a solicitud-entrante', () => {
   expect(
     resolverRutaOperativa(
-      estado({ solicitudActiva: solicitud({ estado: 'esperando_respuesta' }) })
+      estado({ solicitudActiva: solicitud({ estado: 'esperando_respuesta' }) }),
+      Date.parse('2026-10-15T12:00:30.000Z')
     )
   ).toBe('/(operacion)/solicitud-entrante');
 });
@@ -177,4 +179,84 @@ it('una solicitud finalizada no navega a ninguna pantalla de operación especial
   expect(
     resolverRutaOperativa(estado({ solicitudActiva: solicitud({ estado: 'finalizada' }) }))
   ).toBe('/(operacion)/inicio');
+});
+
+describe('ofertaVigente', () => {
+  const expiraEn = '2026-10-15T12:01:00.000Z';
+  const antes = Date.parse('2026-10-15T12:00:30.000Z');
+  const despues = Date.parse('2026-10-15T12:01:30.000Z');
+
+  it('expiraEn null se considera vigente (no se inventa plazo)', () => {
+    expect(ofertaVigente(solicitud({ expiraEn: null }), despues)).toBe(true);
+  });
+
+  it('con plazo, vigente solo si expiraEn es posterior a ahoraServidorMs', () => {
+    expect(ofertaVigente(solicitud({ expiraEn }), antes)).toBe(true);
+    expect(ofertaVigente(solicitud({ expiraEn }), despues)).toBe(false);
+  });
+
+  it('una fecha no parseable cuenta como vencida', () => {
+    expect(ofertaVigente(solicitud({ expiraEn: 'no-es-fecha' }), antes)).toBe(false);
+  });
+});
+
+describe('resolverRutaOperativa · expiración local', () => {
+  const despues = Date.parse('2026-10-15T12:02:00.000Z'); // tras expiraEn por defecto
+  const antes = Date.parse('2026-10-15T12:00:30.000Z');
+
+  it('una oferta propia vencida navega a solicitud-expirada', () => {
+    expect(
+      resolverRutaOperativa(estado({ solicitudActiva: solicitud() }), despues, null)
+    ).toBe('/(operacion)/solicitud-expirada');
+  });
+
+  it('la misma oferta vigente navega a solicitud-entrante', () => {
+    expect(
+      resolverRutaOperativa(estado({ solicitudActiva: solicitud() }), antes, null)
+    ).toBe('/(operacion)/solicitud-entrante');
+  });
+
+  it('una oferta con expiraEn null nunca expira localmente', () => {
+    expect(
+      resolverRutaOperativa(
+        estado({ solicitudActiva: solicitud({ expiraEn: null }) }),
+        despues,
+        null
+      )
+    ).toBe('/(operacion)/solicitud-entrante');
+  });
+
+  it('la oferta vencida ya descartada se trata como ausente (inicio, sin bucle)', () => {
+    expect(
+      resolverRutaOperativa(estado({ solicitudActiva: solicitud() }), despues, 'solicitud-1')
+    ).toBe('/(operacion)/inicio');
+  });
+
+  it('descartar una oferta distinta no afecta a la oferta vencida actual', () => {
+    expect(
+      resolverRutaOperativa(estado({ solicitudActiva: solicitud() }), despues, 'otra-oferta')
+    ).toBe('/(operacion)/solicitud-expirada');
+  });
+
+  it('por defecto (sin reloj explícito) usa el reloj local', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-10-15T12:02:00.000Z'));
+    try {
+      expect(resolverRutaOperativa(estado({ solicitudActiva: solicitud() }))).toBe(
+        '/(operacion)/solicitud-expirada'
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('un servicio en_servicio tiene prioridad sobre la expiración de la oferta', () => {
+    expect(
+      resolverRutaOperativa(
+        estado({ solicitudActiva: solicitud({ estado: 'en_servicio', expiraEn: null }) }),
+        despues,
+        null
+      )
+    ).toBe('/(operacion)/en-servicio');
+  });
 });

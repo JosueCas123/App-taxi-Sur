@@ -77,10 +77,11 @@ function solicitud(conductorAsignadoId: string): SolicitudDetalleDto {
   };
 }
 
-function json(datos: unknown, status = 200): Response {
+function json(datos: unknown, status = 200, fecha: string | null = null): Response {
   return {
     ok: status >= 200 && status < 300,
     status,
+    headers: { get: (clave: string) => (clave === 'Date' ? fecha : null) },
     text: async () => JSON.stringify(datos),
   } as Response;
 }
@@ -693,6 +694,114 @@ describe('AppState', () => {
       await drenar();
     });
     expect(result.current.reconciliacionInicial).toBe('completa');
+  });
+});
+
+describe('cabecera Date y descarte de oferta', () => {
+  const FECHA = 'Wed, 15 Oct 2026 12:00:00 GMT';
+
+  function resolverConFecha(fecha: string | null): void {
+    for (const pendiente of pendientes) {
+      pendiente.resolvente(
+        pendiente.url.includes('solicitud-activa')
+          ? json(solicitud(CONDUCTOR_A), 200, fecha)
+          : json(perfil(CONDUCTOR_A))
+      );
+    }
+    pendientes.length = 0;
+  }
+
+  it('expone la cabecera Date cruda de la última lectura de solicitud-activa', async () => {
+    const { result } = await montar(servidor, sesion(CONDUCTOR_A, invalidar));
+
+    await act(async () => {
+      resolverConFecha(FECHA);
+      await drenar();
+    });
+
+    expect(result.current.fechaServidorSolicitud).toBe(FECHA);
+  });
+
+  it('descarta el reloj del servidor al perder la conexión', async () => {
+    const { result } = await montar(servidor, sesion(CONDUCTOR_A, invalidar));
+    await waitFor(() => expect(result.current.conexion).toBe('conectado'));
+
+    await act(async () => {
+      resolverConFecha(FECHA);
+      await drenar();
+    });
+    expect(result.current.fechaServidorSolicitud).toBe(FECHA);
+
+    await act(async () => {
+      servidor.fin();
+      await drenar();
+    });
+
+    expect(result.current.conexion).toBe('perdida');
+    expect(result.current.fechaServidorSolicitud).toBeNull();
+  });
+
+  it('descartarOfertaVencida se conserva mientras la oferta siga activa y se limpia al desaparecer', async () => {
+    const { result } = await montar(servidor, sesion(CONDUCTOR_A, invalidar));
+    const id = `solicitud-${CONDUCTOR_A}`;
+
+    await act(async () => {
+      resolverPendientes();
+      await drenar();
+    });
+    expect(result.current.solicitudActiva?.id).toBe(id);
+
+    await act(async () => {
+      result.current.descartarOfertaVencida(id);
+    });
+    expect(result.current.ofertaDescartadaId).toBe(id);
+
+    // La reconciliación sigue devolviendo la misma oferta: el descarte permanece.
+    await act(async () => {
+      const enVuelo = result.current.reconciliar();
+      resolverPendientes();
+      await enVuelo;
+      await drenar();
+    });
+    expect(result.current.ofertaDescartadaId).toBe(id);
+
+    // La reconciliación ya no devuelve esa oferta: el descarte se limpia.
+    await act(async () => {
+      const enVuelo = result.current.reconciliar();
+      for (const pendiente of pendientes) {
+        pendiente.resolvente(
+          pendiente.url.includes('solicitud-activa') ? json(null) : json(perfil(CONDUCTOR_A))
+        );
+      }
+      pendientes.length = 0;
+      await enVuelo;
+      await drenar();
+    });
+    expect(result.current.ofertaDescartadaId).toBeNull();
+  });
+
+  it('al cambiar de sesión se limpian el reloj del servidor y el descarte', async () => {
+    const { rerender, result } = await montarCompleto(
+      servidor,
+      sesion(CODIGO_CONDUCTOR_A, invalidar)
+    );
+    await waitFor(() => expect(result.current.conexion).toBe('conectado'));
+
+    await act(async () => {
+      resolverConFecha(FECHA);
+      await drenar();
+    });
+    expect(result.current.fechaServidorSolicitud).toBe(FECHA);
+
+    await act(async () => {
+      result.current.descartarOfertaVencida(`solicitud-${CODIGO_CONDUCTOR_A}`);
+    });
+    expect(result.current.ofertaDescartadaId).toBe(`solicitud-${CODIGO_CONDUCTOR_A}`);
+
+    await rerender({ sesion: sesion(CODIGO_CONDUCTOR_B, invalidar) });
+
+    expect(result.current.fechaServidorSolicitud).toBeNull();
+    expect(result.current.ofertaDescartadaId).toBeNull();
   });
 });
 

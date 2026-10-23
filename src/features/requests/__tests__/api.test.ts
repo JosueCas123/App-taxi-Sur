@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, expect, it, jest } from '@jest/globals';
 
 import { esErrorApi } from '../../../lib/api-client';
-import { obtenerSolicitud, obtenerSolicitudActiva, type SolicitudDetalleDto } from '../api';
+import {
+  obtenerSolicitud,
+  obtenerSolicitudActiva,
+  responderSolicitud,
+  type SolicitudDetalleDto,
+} from '../api';
 
 jest.mock('../../../config/runtime', () => ({
   runtimeConfig: { apiUrl: 'https://api.example.test', contactoAyuda: null },
@@ -10,10 +15,13 @@ jest.mock('../../../config/runtime', () => ({
 const fetchOriginal = globalThis.fetch;
 let fetchMock: jest.MockedFunction<typeof fetch>;
 
-function respuesta(datos: unknown, status = 200): Response {
+function respuesta(datos: unknown, status = 200, fecha: string | null = null): Response {
   return {
     ok: status >= 200 && status < 300,
     status,
+    headers: {
+      get: (clave: string) => (clave === 'Date' ? fecha : null),
+    },
     text: async () => JSON.stringify(datos),
   } as Response;
 }
@@ -135,6 +143,77 @@ it('un fallo de red se propaga como RED sin reintentar', async () => {
   fetchMock.mockRejectedValue(new TypeError('Network request failed'));
 
   await expect(obtenerSolicitudActiva('conductor-a', 'token-123')).rejects.toMatchObject({
+    code: 'RED',
+  });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+it('obtenerSolicitudActiva invoca onFechaServidor con la cabecera Date cruda', async () => {
+  const fecha = 'Wed, 15 Oct 2026 12:00:00 GMT';
+  fetchMock.mockResolvedValue(respuesta(detalle(), 200, fecha));
+
+  const capturada = jest.fn<(fechaServidor: string | null) => void>();
+  await obtenerSolicitudActiva('conductor-a', 'token-123', undefined, capturada);
+
+  expect(capturada).toHaveBeenCalledWith(fecha);
+});
+
+it('obtenerSolicitudActiva invoca onFechaServidor con null si la cabecera Date falta', async () => {
+  fetchMock.mockResolvedValue(respuesta(detalle(), 200, null));
+
+  const capturada = jest.fn<(fechaServidor: string | null) => void>();
+  await obtenerSolicitudActiva('conductor-a', 'token-123', undefined, capturada);
+
+  expect(capturada).toHaveBeenCalledWith(null);
+});
+
+it('responderSolicitud hace POST a /api/solicitudes/:id/responder con cuerpo {acepta:true}', async () => {
+  const dto = detalle({ estado: 'aceptada' });
+  fetchMock.mockResolvedValue(respuesta(dto));
+
+  const resultado = await responderSolicitud('solicitud-1', 'token-123', true);
+
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  const [url, opciones] = fetchMock.mock.calls[0];
+  expect(url).toBe('https://api.example.test/api/solicitudes/solicitud-1/responder');
+  expect(opciones?.method).toBe('POST');
+  const headers = opciones?.headers as Record<string, string>;
+  expect(headers.Authorization).toBe('Bearer token-123');
+  expect(headers['Content-Type']).toBe('application/json');
+  expect(opciones?.body).toBe(JSON.stringify({ acepta: true }));
+  expect(resultado).toEqual(dto);
+});
+
+it('responderSolicitud envía {acepta:false} al rechazar', async () => {
+  const dto = detalle({ estado: 'rechazada' });
+  fetchMock.mockResolvedValue(respuesta(dto));
+
+  await responderSolicitud('solicitud-1', 'token-123', false);
+
+  const [, opciones] = fetchMock.mock.calls[0];
+  expect(opciones?.body).toBe(JSON.stringify({ acepta: false }));
+});
+
+it('responderSolicitud propaga 409 ESTADO_INVALIDO sin reintentar', async () => {
+  fetchMock.mockResolvedValue(
+    respuesta(
+      { error: { code: 'ESTADO_INVALIDO', message: 'La solicitud ya no está vigente' } },
+      409
+    )
+  );
+
+  await expect(responderSolicitud('solicitud-1', 'token-123', true)).rejects.toMatchObject({
+    code: 'CONFLICT',
+    status: 409,
+    backendCode: 'ESTADO_INVALIDO',
+  });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+it('responderSolicitud no reintenta tras timeout', async () => {
+  fetchMock.mockRejectedValue(new TypeError('timeout'));
+
+  await expect(responderSolicitud('solicitud-1', 'token-123', true)).rejects.toMatchObject({
     code: 'RED',
   });
   expect(fetchMock).toHaveBeenCalledTimes(1);

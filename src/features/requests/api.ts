@@ -45,16 +45,37 @@ export type SolicitudDetalleDto = {
   distanciaAproximadaKm: number | null;
 };
 
+export type SolicitudDto = {
+  id: string;
+  pasajeroId: string;
+  conductorAsignadoId: string | null;
+  estado: EstadoSolicitud;
+  latitudRecogida: number;
+  longitudRecogida: number;
+  destino: string | null;
+  puntoRecogidaTexto: string | null;
+  expiraEn: string | null;
+  aceptadaEn: string | null;
+  finalizadaEn: string | null;
+  creadoEn: string;
+};
+
 // GET /api/conductores/:id/solicitud-activa → SolicitudDetalleDto | null
 // Bearer; devuelve null cuando el conductor no tiene solicitud activa.
+// El callback opcional recibe la cabecera HTTP Date cruda (no ISO) o null.
 export function obtenerSolicitudActiva(
   conductorId: string,
   token: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onFechaServidor?: (fechaServidor: string | null) => void
 ): Promise<SolicitudDetalleDto | null> {
   return apiRequest<SolicitudDetalleDto | null>(
     `/api/conductores/${encodeURIComponent(conductorId)}/solicitud-activa`,
-    { token, signal }
+    {
+      token,
+      signal,
+      ...(onFechaServidor && { capturarFechaServidor: onFechaServidor }),
+    }
   );
 }
 
@@ -68,4 +89,22 @@ export function obtenerSolicitud(
     token,
     signal,
   });
+}
+
+// POST /api/solicitudes/:id/responder {acepta} → SolicitudDto
+// Bearer; una única petición sin reintento. 409 ESTADO_INVALIDO en conflicto
+// o vencimiento.
+export function responderSolicitud(
+  solicitudId: string,
+  token: string,
+  acepta: boolean
+): Promise<SolicitudDto> {
+  return apiRequest<SolicitudDto>(
+    `/api/solicitudes/${encodeURIComponent(solicitudId)}/responder`,
+    {
+      metodo: 'POST',
+      token,
+      cuerpo: { acepta },
+    }
+  );
 }

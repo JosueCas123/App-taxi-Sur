@@ -22,6 +22,9 @@ type ScreenProps = {
   style?: ViewStyle;
   contentContainerStyle?: ViewStyle;
   background?: string;
+  // Fuerza los bordes de safe area. Útil cuando el header/footer los gestiona
+  // otro contenedor (p. ej. el layout de pestañas) y no deben duplicarse.
+  edges?: Edge[];
 };
 
 export function Screen({
@@ -34,6 +37,7 @@ export function Screen({
   style,
   contentContainerStyle,
   background,
+  edges,
 }: ScreenProps) {
   const backgroundColor =
     background ?? (style?.backgroundColor as string | undefined) ?? colors.bg;
@@ -41,14 +45,15 @@ export function Screen({
 
   // El header y el footer gestionan su propio inset (safe area) para que su
   // fondo cubra el área del sistema.
-  const edges: Edge[] = [];
+  const edgesAuto: Edge[] = [];
   if (!header) {
-    edges.push('top');
+    edgesAuto.push('top');
   }
-  edges.push('left', 'right');
+  edgesAuto.push('left', 'right');
   if (!footer) {
-    edges.push('bottom');
+    edgesAuto.push('bottom');
   }
+  const edgesFinales = edges ?? edgesAuto;
 
   const contenido = scroll ? (
     <ScrollView
@@ -75,7 +80,7 @@ export function Screen({
   );
 
   return (
-    <SafeAreaView edges={edges} style={[styles.base, style, { backgroundColor }]}>
+    <SafeAreaView edges={edgesFinales} style={[styles.base, style, { backgroundColor }]}>
       {header}
       <KeyboardAvoidingView style={styles.flex} behavior="padding">
         {contenido}

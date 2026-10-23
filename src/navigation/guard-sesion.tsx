@@ -5,12 +5,15 @@ import { StyleSheet, View } from 'react-native';
 import { RefrescoPerfilProvider } from '../features/account/use-refresco-perfil';
 import { useSession } from '../features/auth/session-context';
 import { useDriverEventsContext } from '../features/events/driver-events-provider';
+import { useAhoraServidorMs } from '../features/requests/use-offer-deadline';
 import { LoadingState } from '../ui';
 import {
   evaluarAccesoOperativo,
+  esRutaTabOperativa,
   pathnameCuentaPorEstado,
   pathnameDeRuta,
   resolverRutaOperativa,
+  RUTA_OPERATIVA_NEUTRA,
   rutaInicialPorEstado,
 } from './resolve-route';
 
@@ -66,9 +69,18 @@ export function GuardRutaAuth({ children }: { children: ReactNode }) {
 // (`servicioConfirmado: null` no significa "sin servicio").
 export function GuardRutaOperativa({ children }: { children: ReactNode }) {
   const { status, conductor } = useSession();
-  const { servicioConfirmado, solicitudActiva, reconciliacionInicial } =
-    useDriverEventsContext();
+  const {
+    servicioConfirmado,
+    solicitudActiva,
+    reconciliacionInicial,
+    fechaServidorSolicitud,
+    ofertaDescartadaId,
+  } = useDriverEventsContext();
   const pathname = usePathname();
+
+  // Mismo reloj estimado que la pantalla: desfase estable desde la cabecera
+  // Date, aplicado al reloj local para orientar la navegación de expiración.
+  const ahoraServidorMs = useAhoraServidorMs(fechaServidorSolicitud, Date.now);
 
   const gateAbierto = reconciliacionInicial === 'completa';
 
@@ -79,7 +91,7 @@ export function GuardRutaOperativa({ children }: { children: ReactNode }) {
 
   const rutaResuelta =
     status === 'autenticado' && conductor && gateAbierto
-      ? resolverRutaOperativa({ conductor, solicitudActiva })
+      ? resolverRutaOperativa({ conductor, solicitudActiva }, ahoraServidorMs, ofertaDescartadaId)
       : null;
 
   useEffect(() => {
@@ -90,8 +102,15 @@ export function GuardRutaOperativa({ children }: { children: ReactNode }) {
       router.replace(rutaResuelta);
       return;
     }
+    // Las pestañas operativas (inicio/ubicación/mi cuenta) se recorren con
+    // libertad mientras la ruta resuelta sea el neutro `inicio`. Cualquier
+    // oferta/servicio (o un estado de cuenta) que resuelva otra ruta sí alinea
+    // la navegación y expulsa de la pestaña.
+    const rutaResueltaPath = pathnameDeRuta(rutaResuelta);
+    const enTabLibre =
+      rutaResueltaPath === pathnameDeRuta(RUTA_OPERATIVA_NEUTRA) && esRutaTabOperativa(pathname);
     // Oferta/servicio propio: alinea la ruta con el estado reconciliado.
-    if (pathnameDeRuta(rutaResuelta) !== pathname) {
+    if (!enTabLibre && rutaResueltaPath !== pathname) {
       router.replace(rutaResuelta);
     }
   }, [status, conductor, acceso, rutaResuelta, pathname]);
