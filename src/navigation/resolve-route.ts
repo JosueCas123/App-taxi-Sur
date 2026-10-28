@@ -46,7 +46,8 @@ export function pathnameCuentaPorEstado(
 export function evaluarAccesoOperativo(
   estadoCuenta: ConductorDetalleDto['estado'] | null | undefined,
   conductorId: string | null,
-  servicio: ServicioConfirmado | null
+  servicio: ServicioConfirmado | null,
+  continuidadFinalizacion = false
 ): AccesoOperativo {
   if (!estadoCuenta || !conductorId) {
     return 'bloqueado_por_estado';
@@ -61,8 +62,11 @@ export function evaluarAccesoOperativo(
     return 'permitido';
   }
 
-  // Cuentas restringidas: solo continuidad/finalización con servicio confirmado propio.
-  return servicioConfirmado ? 'solo_finalizar' : 'bloqueado_por_estado';
+  // Cuentas restringidas: solo continuidad/finalización con servicio confirmado
+  // propio o con un servicio en verificación/éxito pendiente de mostrar.
+  return servicioConfirmado || continuidadFinalizacion
+    ? 'solo_finalizar'
+    : 'bloqueado_por_estado';
 }
 
 // Estado operativo ya reconciliado con datos reales del conductor autenticado.
@@ -92,27 +96,46 @@ export function ofertaVigente(
 // `ahoraServidorMs` (por defecto, el reloj local) orienta la vigencia local de
 // la oferta; `ofertaDescartadaId` trata como ausente la oferta vencida que el
 // conductor ya descartó, evitando el bucle solicitud-expirada → inicio.
+export type OpcionesFinalizacion = {
+  servicioFinalizadoId?: string | null;
+  servicioEnVerificacionId?: string | null;
+};
+
 export function resolverRutaOperativa(
   estado: EstadoOperativoConfirmado,
   ahoraServidorMs: number = Date.now(),
-  ofertaDescartadaId: string | null = null
+  ofertaDescartadaId: string | null = null,
+  finalizacion?: OpcionesFinalizacion
 ): Href {
   const { conductor, solicitudActiva } = estado;
+  const servicioFinalizadoId = finalizacion?.servicioFinalizadoId ?? null;
+  const servicioEnVerificacionId = finalizacion?.servicioEnVerificacionId ?? null;
 
   const esPropia =
     solicitudActiva !== null && solicitudActiva.conductorAsignadoId === conductor.id;
 
-  // Servicio propio en curso: continuidad aunque la cuenta esté restringida.
-  if (esPropia && solicitudActiva.estado === 'en_servicio') {
+  // Verificación pendiente: mantiene al conductor en el servicio aunque
+  // `solicitud-activa` ya sea null, para que el guard no lo expulse.
+  if (servicioEnVerificacionId !== null) {
     return '/(operacion)/en-servicio';
   }
 
-  if (conductor.estado !== 'aprobado') {
-    return rutaInicialPorEstado(conductor.estado);
+  // Servicio propio en curso: continuidad aunque la cuenta esté restringida.
+  // El mismo servicio ya confirmado como finalizado se trata como ausente.
+  if (
+    esPropia &&
+    solicitudActiva.estado === 'en_servicio' &&
+    solicitudActiva.id !== servicioFinalizadoId
+  ) {
+    return '/(operacion)/en-servicio';
   }
 
   // Oferta propia esperando respuesta: solo navega si la asignación coincide.
-  if (esPropia && solicitudActiva.estado === 'esperando_respuesta') {
+  if (
+    conductor.estado === 'aprobado' &&
+    esPropia &&
+    solicitudActiva.estado === 'esperando_respuesta'
+  ) {
     // Oferta ya descartada por el conductor: se trata como ausente.
     if (ofertaDescartadaId !== null && solicitudActiva.id === ofertaDescartadaId) {
       return '/(operacion)/inicio';
@@ -120,6 +143,15 @@ export function resolverRutaOperativa(
     return ofertaVigente(solicitudActiva, ahoraServidorMs)
       ? '/(operacion)/solicitud-entrante'
       : '/(operacion)/solicitud-expirada';
+  }
+
+  // Éxito confirmado: gana sobre la ruta de una cuenta restringida.
+  if (servicioFinalizadoId !== null) {
+    return '/(operacion)/servicio-finalizado';
+  }
+
+  if (conductor.estado !== 'aprobado') {
+    return rutaInicialPorEstado(conductor.estado);
   }
 
   return '/(operacion)/inicio';

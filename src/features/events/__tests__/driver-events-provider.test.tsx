@@ -1,4 +1,5 @@
 import { describe, expect, it, jest } from '@jest/globals';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react-native';
 import { Text } from 'react-native';
 
@@ -28,10 +29,13 @@ function Sonda() {
 
 describe('DriverEventsProvider', () => {
   it('expone el estado del stream reconciliado a los hijos', async () => {
+    const cliente = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const vista = await render(
-      <DriverEventsProvider>
-        <Sonda />
-      </DriverEventsProvider>
+      <QueryClientProvider client={cliente}>
+        <DriverEventsProvider>
+          <Sonda />
+        </DriverEventsProvider>
+      </QueryClientProvider>
     );
     expect(vista.getByTestId('sonda').props.children).toBe('pendiente/iniciando');
   });

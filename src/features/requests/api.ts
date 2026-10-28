@@ -108,3 +108,13 @@ export function responderSolicitud(
     }
   );
 }
+
+// POST /api/solicitudes/:id/finalizar → SolicitudDto
+// Bearer, sin cuerpo (el backend acepta {} o ausencia de cuerpo). Una única
+// petición sin reintento: repetirla no es idempotente y puede devolver 409.
+export function finalizarSolicitud(solicitudId: string, token: string): Promise<SolicitudDto> {
+  return apiRequest<SolicitudDto>(`/api/solicitudes/${encodeURIComponent(solicitudId)}/finalizar`, {
+    metodo: 'POST',
+    token,
+  });
+}

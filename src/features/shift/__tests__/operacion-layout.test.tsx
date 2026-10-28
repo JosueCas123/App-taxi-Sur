@@ -1,4 +1,5 @@
 import { describe, expect, it, jest } from '@jest/globals';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 
@@ -56,15 +57,26 @@ jest.mock('expo-router', () => {
   return { Stack: () => React.createElement(Sonda) };
 });
 
+function renderLayout() {
+  const cliente = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={cliente}>
+      <OperacionLayout />
+    </QueryClientProvider>
+  );
+}
+
 describe('OperacionLayout · costuras M04/M05', () => {
   it('inyecta el estado real de M04 (sin_muestra) en el ámbito operativo', async () => {
-    const vista = await render(<OperacionLayout />);
+    const vista = await renderLayout();
     expect(vista.getByTestId('lista').props.children).toBe('false');
     expect(vista.getByTestId('motivo').props.children).toBe('sin_muestra');
   });
 
   it('monta el reconciliador real de M05 (reconciliar) en el ámbito operativo', async () => {
-    const vista = await render(<OperacionLayout />);
+    const vista = await renderLayout();
     expect(vista.getByTestId('reconciliador').props.children).toBe('function');
   });
 });
