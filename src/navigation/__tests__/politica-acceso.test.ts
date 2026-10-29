@@ -56,6 +56,18 @@ it('un servicio que no está en_servicio no cuenta como confirmado (defensivo)',
   ).toBe('bloqueado_por_estado');
 });
 
+it.each(['pendiente', 'rechazado', 'suspendido'] as const)(
+  '%s con continuidad de finalización conserva solo_finalizar',
+  (estado) => {
+    expect(evaluarAccesoOperativo(estado, 'conductor-a', null, true)).toBe('solo_finalizar');
+  }
+);
+
+it('la continuidad de finalización no habilita una identidad sin verificar', () => {
+  expect(evaluarAccesoOperativo('suspendido', null, null, true)).toBe('bloqueado_por_estado');
+  expect(evaluarAccesoOperativo(null, 'conductor-a', null, true)).toBe('bloqueado_por_estado');
+});
+
 it('estado de cuenta ausente o identidad sin verificar no habilita operación', () => {
   expect(evaluarAccesoOperativo(null, 'conductor-a', servicio())).toBe('bloqueado_por_estado');
   expect(evaluarAccesoOperativo(undefined, 'conductor-a', null)).toBe('bloqueado_por_estado');

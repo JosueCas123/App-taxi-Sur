@@ -1,8 +1,10 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { runtimeConfig } from '../../config/runtime';
 import { esErrorApi } from '../../lib/api-client';
+import { queryKeys } from '../../lib/query-client';
 import type { ServicioConfirmado } from '../../navigation/resolve-route';
 import { registrarAlInvalidar, useSession } from '../auth/session-context';
 import type { SolicitudDetalleDto } from '../requests/api';
@@ -30,6 +32,19 @@ export type UseDriverEventsResult = {
   // limpia cuando la reconciliación deja de devolver esa oferta o cambia la sesión.
   ofertaDescartadaId: string | null;
   descartarOfertaVencida: (solicitudId: string) => void;
+  // Servicio cuya finalización fue confirmada por el backend. En memoria, por
+  // sesión/conductor. Se conserva mientras solicitudActiva sea null o el mismo id;
+  // se limpia si aparece una solicitud activa distinta, al cambiar/invalidar la
+  // sesión o al limpiarlo explícitamente tras "Volver a mi jornada".
+  servicioFinalizadoId: string | null;
+  // Servicio cuya finalización está pendiente de verificación. Se conserva
+  // mientras solicitudActiva sea null o el mismo id; se limpia al confirmar el
+  // detalle, al aparecer otra solicitud activa o al cambiar/invalidar la sesión.
+  servicioEnVerificacionId: string | null;
+  marcarServicioFinalizado: (solicitudId: string) => void;
+  limpiarServicioFinalizado: () => void;
+  marcarServicioEnVerificacion: (solicitudId: string) => void;
+  limpiarServicioEnVerificacion: () => void;
 };
 
 export type OpcionesDriverEvents = {
@@ -52,6 +67,7 @@ export function backoffMs(fallos: number, pistaMs?: number | null): number {
 
 export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverEventsResult {
   const { token, conductorId, invalidarSesion } = useSession();
+  const queryClient = useQueryClient();
 
   const [conexion, setConexion] = useState<EstadoConexion>('iniciando');
   const [reconciliando, setReconciliando] = useState(false);
@@ -61,6 +77,8 @@ export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverE
   const [servicioConfirmado, setServicioConfirmado] = useState<ServicioConfirmado | null>(null);
   const [fechaServidorSolicitud, setFechaServidorSolicitud] = useState<string | null>(null);
   const [ofertaDescartadaId, setOfertaDescartadaId] = useState<string | null>(null);
+  const [servicioFinalizadoId, setServicioFinalizadoId] = useState<string | null>(null);
+  const [servicioEnVerificacionId, setServicioEnVerificacionId] = useState<string | null>(null);
 
   const montadoRef = useRef(true);
   // Generación de sesión/conductor: descarta respuestas y eventos previos.
@@ -72,6 +90,10 @@ export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverE
   const fetchImplRef = useRef(opciones.fetchImpl);
   // Espejo en ref del descarte: `reconciliar` (estable) lo lee sin depender del estado.
   const ofertaDescartadaRef = useRef<string | null>(null);
+  // Espejos de los flags para que `reconciliar` y las acciones se lean entre sí
+  // sin carreras por el estado de React.
+  const servicioFinalizadoRef = useRef<string | null>(null);
+  const servicioEnVerificacionRef = useRef<string | null>(null);
 
   // Ciclo de conexión SSE: el AbortController lo posee este hook.
   const conexionRef = useRef<ConexionSse | null>(null);
@@ -124,8 +146,31 @@ export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverE
             continue;
           }
           if (!montadoRef.current) break;
+          // Publica el perfil leído en la misma pasada (sin otra consulta ni
+          // `actualizarPerfil`) para que `useSession().conductor` refleje el
+          // cierre diferido y la disponibilidad.
+          queryClient.setQueryData(queryKeys.conductor(conductorIdActual), instantanea.conductor);
           setSolicitudActiva(instantanea.solicitudActiva);
           setServicioConfirmado(servicioConfirmadoDe(instantanea));
+          // Los flags sobreviven a `null` y al mismo UUID. Solo se limpian si
+          // aparece una solicitud activa con otro id.
+          const solicitudLeida = instantanea.solicitudActiva;
+          if (
+            solicitudLeida !== null &&
+            servicioFinalizadoRef.current !== null &&
+            solicitudLeida.id !== servicioFinalizadoRef.current
+          ) {
+            servicioFinalizadoRef.current = null;
+            setServicioFinalizadoId(null);
+          }
+          if (
+            solicitudLeida !== null &&
+            servicioEnVerificacionRef.current !== null &&
+            solicitudLeida.id !== servicioEnVerificacionRef.current
+          ) {
+            servicioEnVerificacionRef.current = null;
+            setServicioEnVerificacionId(null);
+          }
           // El descarte solo se limpia cuando la reconciliación deja de devolver
           // esa misma oferta (o cambia la sesión, resuelto en su efecto).
           if (
@@ -154,13 +199,40 @@ export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverE
       enVueloRef.current = false;
       if (montadoRef.current) setReconciliando(false);
     }
-  }, []);
+  }, [queryClient]);
 
   // "Volver a mi jornada": registra la oferta vencida descartada en memoria para
   // que el guard la trate como ausente mientras el backend siga devolviéndola.
   const descartarOfertaVencida = useCallback((solicitudId: string) => {
     ofertaDescartadaRef.current = solicitudId;
     setOfertaDescartadaId(solicitudId);
+  }, []);
+
+  // Confirmación del backend: gana sobre una verificación pendiente del mismo id.
+  const marcarServicioFinalizado = useCallback((solicitudId: string) => {
+    servicioFinalizadoRef.current = solicitudId;
+    setServicioFinalizadoId(solicitudId);
+    if (servicioEnVerificacionRef.current === solicitudId) {
+      servicioEnVerificacionRef.current = null;
+      setServicioEnVerificacionId(null);
+    }
+  }, []);
+
+  const limpiarServicioFinalizado = useCallback(() => {
+    servicioFinalizadoRef.current = null;
+    setServicioFinalizadoId(null);
+  }, []);
+
+  // No se registra una verificación si ese servicio ya está confirmado.
+  const marcarServicioEnVerificacion = useCallback((solicitudId: string) => {
+    if (servicioFinalizadoRef.current === solicitudId) return;
+    servicioEnVerificacionRef.current = solicitudId;
+    setServicioEnVerificacionId(solicitudId);
+  }, []);
+
+  const limpiarServicioEnVerificacion = useCallback(() => {
+    servicioEnVerificacionRef.current = null;
+    setServicioEnVerificacionId(null);
   }, []);
 
   useEffect(() => {
@@ -192,9 +264,13 @@ export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverE
     if (!token || !conductorId) {
       sesionRef.current = null;
       ofertaDescartadaRef.current = null;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- sesión cerrada: limpia el desfase y el descarte en memoria
+      servicioFinalizadoRef.current = null;
+      servicioEnVerificacionRef.current = null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sesión cerrada: limpia el desfase, el descarte y los flags en memoria
       setFechaServidorSolicitud(null);
       setOfertaDescartadaId(null);
+      setServicioFinalizadoId(null);
+      setServicioEnVerificacionId(null);
       detenerCiclo();
       return;
     }
@@ -210,6 +286,10 @@ export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverE
     ofertaDescartadaRef.current = null;
     setFechaServidorSolicitud(null);
     setOfertaDescartadaId(null);
+    servicioFinalizadoRef.current = null;
+    servicioEnVerificacionRef.current = null;
+    setServicioFinalizadoId(null);
+    setServicioEnVerificacionId(null);
     setSolicitudActiva(null);
     setServicioConfirmado(null);
 
@@ -306,6 +386,10 @@ export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverE
     return registrarAlInvalidar(() => {
       ++generacionRef.current;
       sesionRef.current = null;
+      servicioFinalizadoRef.current = null;
+      servicioEnVerificacionRef.current = null;
+      setServicioFinalizadoId(null);
+      setServicioEnVerificacionId(null);
       detenerCiclo();
     });
   }, [detenerCiclo]);
@@ -321,6 +405,12 @@ export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverE
       fechaServidorSolicitud,
       ofertaDescartadaId,
       descartarOfertaVencida,
+      servicioFinalizadoId,
+      servicioEnVerificacionId,
+      marcarServicioFinalizado,
+      limpiarServicioFinalizado,
+      marcarServicioEnVerificacion,
+      limpiarServicioEnVerificacion,
     }),
     [
       conexion,
@@ -332,6 +422,12 @@ export function useDriverEvents(opciones: OpcionesDriverEvents = {}): UseDriverE
       fechaServidorSolicitud,
       ofertaDescartadaId,
       descartarOfertaVencida,
+      servicioFinalizadoId,
+      servicioEnVerificacionId,
+      marcarServicioFinalizado,
+      limpiarServicioFinalizado,
+      marcarServicioEnVerificacion,
+      limpiarServicioEnVerificacion,
     ]
   );
 }

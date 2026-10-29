@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, jest } from '@jest/globals';
 
 import { esErrorApi } from '../../../lib/api-client';
 import {
+  finalizarSolicitud,
   obtenerSolicitud,
   obtenerSolicitudActiva,
   responderSolicitud,
@@ -214,6 +215,80 @@ it('responderSolicitud no reintenta tras timeout', async () => {
   fetchMock.mockRejectedValue(new TypeError('timeout'));
 
   await expect(responderSolicitud('solicitud-1', 'token-123', true)).rejects.toMatchObject({
+    code: 'RED',
+  });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+it('finalizarSolicitud hace POST a /api/solicitudes/:id/finalizar sin cuerpo ni Content-Type', async () => {
+  const dto = detalle({ estado: 'finalizada', finalizadaEn: '2026-10-15T12:05:00.000Z' });
+  fetchMock.mockResolvedValue(respuesta(dto));
+
+  const resultado = await finalizarSolicitud('solicitud-1', 'token-123');
+
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  const [url, opciones] = fetchMock.mock.calls[0];
+  expect(url).toBe('https://api.example.test/api/solicitudes/solicitud-1/finalizar');
+  expect(opciones?.method).toBe('POST');
+  const headers = opciones?.headers as Record<string, string>;
+  expect(headers.Authorization).toBe('Bearer token-123');
+  expect(headers.Accept).toBe('application/json');
+  expect(headers['Content-Type']).toBeUndefined();
+  expect(opciones?.body).toBeUndefined();
+  expect(resultado).toEqual(dto);
+});
+
+it('finalizarSolicitud codifica el id en la ruta', async () => {
+  fetchMock.mockResolvedValue(respuesta(detalle({ estado: 'finalizada' })));
+
+  await finalizarSolicitud('solicitud/con espacio', 'token-123');
+
+  const [url] = fetchMock.mock.calls[0];
+  expect(url).toBe(
+    'https://api.example.test/api/solicitudes/solicitud%2Fcon%20espacio/finalizar'
+  );
+});
+
+it('finalizarSolicitud propaga 409 ESTADO_INVALIDO sin reintentar', async () => {
+  fetchMock.mockResolvedValue(
+    respuesta(
+      { error: { code: 'ESTADO_INVALIDO', message: 'La solicitud no está en servicio' } },
+      409
+    )
+  );
+
+  await expect(finalizarSolicitud('solicitud-1', 'token-123')).rejects.toMatchObject({
+    code: 'CONFLICT',
+    status: 409,
+    backendCode: 'ESTADO_INVALIDO',
+  });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+it('finalizarSolicitud propaga 403 y 404 sin reintentar', async () => {
+  fetchMock.mockResolvedValueOnce(
+    respuesta({ error: { code: 'FORBIDDEN', message: 'Permiso denegado' } }, 403)
+  );
+  await expect(finalizarSolicitud('solicitud-1', 'token-123')).rejects.toMatchObject({
+    code: 'FORBIDDEN',
+    status: 403,
+  });
+
+  fetchMock.mockResolvedValueOnce(
+    respuesta({ error: { code: 'NOT_FOUND', message: 'Solicitud no encontrada' } }, 404)
+  );
+  await expect(finalizarSolicitud('solicitud-1', 'token-123')).rejects.toMatchObject({
+    code: 'NOT_FOUND',
+    status: 404,
+  });
+
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
+it('finalizarSolicitud no reintenta tras timeout ni error de red', async () => {
+  fetchMock.mockRejectedValue(new TypeError('timeout'));
+
+  await expect(finalizarSolicitud('solicitud-1', 'token-123')).rejects.toMatchObject({
     code: 'RED',
   });
   expect(fetchMock).toHaveBeenCalledTimes(1);

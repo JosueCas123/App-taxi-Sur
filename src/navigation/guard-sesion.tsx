@@ -75,6 +75,8 @@ export function GuardRutaOperativa({ children }: { children: ReactNode }) {
     reconciliacionInicial,
     fechaServidorSolicitud,
     ofertaDescartadaId,
+    servicioFinalizadoId,
+    servicioEnVerificacionId,
   } = useDriverEventsContext();
   const pathname = usePathname();
 
@@ -83,15 +85,27 @@ export function GuardRutaOperativa({ children }: { children: ReactNode }) {
   const ahoraServidorMs = useAhoraServidorMs(fechaServidorSolicitud, Date.now);
 
   const gateAbierto = reconciliacionInicial === 'completa';
+  const continuidadFinalizacion =
+    servicioFinalizadoId !== null || servicioEnVerificacionId !== null;
 
   const acceso =
     status === 'autenticado' && conductor && gateAbierto
-      ? evaluarAccesoOperativo(conductor.estado, conductor.id, servicioConfirmado)
+      ? evaluarAccesoOperativo(
+          conductor.estado,
+          conductor.id,
+          servicioConfirmado,
+          continuidadFinalizacion
+        )
       : 'bloqueado_por_estado';
 
   const rutaResuelta =
     status === 'autenticado' && conductor && gateAbierto
-      ? resolverRutaOperativa({ conductor, solicitudActiva }, ahoraServidorMs, ofertaDescartadaId)
+      ? resolverRutaOperativa(
+          { conductor, solicitudActiva },
+          ahoraServidorMs,
+          ofertaDescartadaId,
+          { servicioFinalizadoId, servicioEnVerificacionId }
+        )
       : null;
 
   useEffect(() => {
@@ -113,7 +127,15 @@ export function GuardRutaOperativa({ children }: { children: ReactNode }) {
     if (!enTabLibre && rutaResueltaPath !== pathname) {
       router.replace(rutaResuelta);
     }
-  }, [status, conductor, acceso, rutaResuelta, pathname]);
+  }, [
+    status,
+    conductor,
+    acceso,
+    rutaResuelta,
+    pathname,
+    servicioFinalizadoId,
+    servicioEnVerificacionId,
+  ]);
 
   if (status === 'autenticado' && conductor && acceso !== 'bloqueado_por_estado') {
     return <>{children}</>;

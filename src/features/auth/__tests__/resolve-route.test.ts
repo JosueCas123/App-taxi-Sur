@@ -15,6 +15,7 @@ it.each([
   ['/(operacion)/inicio', '/inicio'],
   ['/(operacion)/solicitud-entrante', '/solicitud-entrante'],
   ['/(operacion)/en-servicio', '/en-servicio'],
+  ['/(operacion)/servicio-finalizado', '/servicio-finalizado'],
   ['/(cuenta)/revision', '/revision'],
 ] satisfies [string, string][])('pathnameDeRuta(%s) → %s', (href, pathname) => {
   expect(pathnameDeRuta(href as Href)).toBe(pathname);
@@ -258,5 +259,92 @@ describe('resolverRutaOperativa · expiración local', () => {
         null
       )
     ).toBe('/(operacion)/en-servicio');
+  });
+});
+
+describe('resolverRutaOperativa · finalización', () => {
+  const ahora = Date.parse('2026-10-15T12:00:30.000Z');
+
+  it('un éxito confirmado navega a servicio-finalizado', () => {
+    expect(
+      resolverRutaOperativa(estado(), ahora, null, {
+        servicioFinalizadoId: 'solicitud-1',
+      })
+    ).toBe('/(operacion)/servicio-finalizado');
+  });
+
+  it('una verificación pendiente mantiene en-servicio aunque no haya solicitud activa', () => {
+    expect(
+      resolverRutaOperativa(estado(), ahora, null, {
+        servicioEnVerificacionId: 'solicitud-1',
+      })
+    ).toBe('/(operacion)/en-servicio');
+  });
+
+  it('la verificación pendiente tiene prioridad sobre un éxito anterior', () => {
+    expect(
+      resolverRutaOperativa(estado(), ahora, null, {
+        servicioFinalizadoId: 'solicitud-1',
+        servicioEnVerificacionId: 'solicitud-2',
+      })
+    ).toBe('/(operacion)/en-servicio');
+  });
+
+  it('el mismo UUID en_servicio ya confirmado como finalizado se trata como ausente', () => {
+    expect(
+      resolverRutaOperativa(
+        estado({ solicitudActiva: solicitud({ id: 'solicitud-1', estado: 'en_servicio' }) }),
+        ahora,
+        null,
+        { servicioFinalizadoId: 'solicitud-1' }
+      )
+    ).toBe('/(operacion)/servicio-finalizado');
+  });
+
+  it('un servicio nuevo con otro UUID gana sobre el éxito anterior', () => {
+    expect(
+      resolverRutaOperativa(
+        estado({ solicitudActiva: solicitud({ id: 'solicitud-2', estado: 'en_servicio' }) }),
+        ahora,
+        null,
+        { servicioFinalizadoId: 'solicitud-1' }
+      )
+    ).toBe('/(operacion)/en-servicio');
+  });
+
+  it('una oferta nueva gana sobre el éxito anterior', () => {
+    expect(
+      resolverRutaOperativa(
+        estado({ solicitudActiva: solicitud({ id: 'solicitud-2' }) }),
+        ahora,
+        null,
+        { servicioFinalizadoId: 'solicitud-1' }
+      )
+    ).toBe('/(operacion)/solicitud-entrante');
+  });
+
+  it('una cuenta suspendida con éxito confirmado mantiene servicio-finalizado', () => {
+    expect(
+      resolverRutaOperativa(estado({ conductor: { estado: 'suspendido' } }), ahora, null, {
+        servicioFinalizadoId: 'solicitud-1',
+      })
+    ).toBe('/(operacion)/servicio-finalizado');
+  });
+
+  it('una cuenta suspendida con verificación pendiente mantiene en-servicio', () => {
+    expect(
+      resolverRutaOperativa(estado({ conductor: { estado: 'suspendido' } }), ahora, null, {
+        servicioEnVerificacionId: 'solicitud-1',
+      })
+    ).toBe('/(operacion)/en-servicio');
+  });
+
+  it('una cuenta suspendida sin continuidad mantiene su ruta de cuenta', () => {
+    expect(
+      resolverRutaOperativa(estado({ conductor: { estado: 'suspendido' } }), ahora, null, {
+        servicioFinalizadoId: null,
+        servicioEnVerificacionId: null,
+      })
+    ).toBe('/(cuenta)/suspendida');
   });
 });

@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
+import type { ReactNode } from 'react';
 import { AppState } from 'react-native';
 
+import { queryKeys } from '../../../lib/query-client';
 import type { ConductorDetalleDto } from '../../auth/api';
 import { useSession } from '../../auth/session-context';
 import type { SolicitudDetalleDto } from '../../requests/api';
@@ -40,6 +43,12 @@ const { __dispararInvalidacion } = jest.requireMock('../../auth/session-context'
 const CONDUCTOR_A = 'conductor-a';
 const CODIGO_CONDUCTOR_A = 'a1111111-1111-4111-8111-111111111111';
 const CODIGO_CONDUCTOR_B = 'b2222222-2222-4222-8222-222222222222';
+
+let cliente: QueryClient;
+
+function Envoltorio({ children }: { children: ReactNode }) {
+  return <QueryClientProvider client={cliente}>{children}</QueryClientProvider>;
+}
 
 function perfil(id: string): ConductorDetalleDto {
   return {
@@ -139,6 +148,20 @@ function rechazarPendientes(filtro?: (url: string) => boolean): number {
     pendiente.resolvente(json({ error: { code: 'SERVER', message: 'caido' } }, 500));
   }
   return elegidos.length;
+}
+
+function resolverReconciliacion(
+  solicitudActiva: SolicitudDetalleDto | null,
+  conductorId = CONDUCTOR_A
+): void {
+  for (const pendiente of pendientes) {
+    pendiente.resolvente(
+      pendiente.url.includes('solicitud-activa')
+        ? json(solicitudActiva)
+        : json(perfil(conductorId))
+    );
+  }
+  pendientes.length = 0;
 }
 
 // --- Servidor SSE falso con control manual -----------------------------------
@@ -281,7 +304,7 @@ async function montar(
       useSessionMock.mockReturnValue(sesionActual);
       return useDriverEvents({ fetchImpl: servidor.fetchImpl });
     },
-    { initialProps: { sesion: sesionInicial } }
+    { initialProps: { sesion: sesionInicial }, wrapper: Envoltorio }
   );
   return { result: envuelto.result as { current: UseDriverEventsResult }, rerender: envuelto.rerender };
 }
@@ -293,6 +316,7 @@ const fetchOriginal = globalThis.fetch;
 
 beforeEach(() => {
   jest.clearAllMocks();
+  cliente = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   appStateListener = null;
   invalidar = jest.fn();
   servidor = crearServidorSse();
@@ -585,7 +609,7 @@ async function montarCompleto(servidorSse: ServidorSse, sesionInicial: SesionPru
       useSessionMock.mockReturnValue(sesionActual);
       return useDriverEvents({ fetchImpl: servidorSse.fetchImpl });
     },
-    { initialProps: { sesion: sesionInicial } }
+    { initialProps: { sesion: sesionInicial }, wrapper: Envoltorio }
   );
   return {
     result: envuelto.result as { current: UseDriverEventsResult },
@@ -802,6 +826,152 @@ describe('cabecera Date y descarte de oferta', () => {
 
     expect(result.current.fechaServidorSolicitud).toBeNull();
     expect(result.current.ofertaDescartadaId).toBeNull();
+  });
+});
+
+describe('flags de finalización y caché del perfil', () => {
+  const ID_ACTIVO = `solicitud-${CONDUCTOR_A}`;
+  const OTRO_ID = 'solicitud-otra';
+
+  async function reconciliarCon(
+    result: { current: UseDriverEventsResult },
+    solicitudActiva: SolicitudDetalleDto | null
+  ): Promise<void> {
+    await act(async () => {
+      const enVuelo = result.current.reconciliar();
+      resolverReconciliacion(solicitudActiva);
+      await enVuelo;
+      await drenar();
+    });
+  }
+
+  it('marcarServicioFinalizado limpia la verificación del mismo id y la confirma', async () => {
+    const { result } = await montar(servidor, sesion(CONDUCTOR_A, invalidar));
+    await act(async () => {
+      resolverPendientes();
+      await drenar();
+    });
+
+    await act(async () => {
+      result.current.marcarServicioEnVerificacion(ID_ACTIVO);
+    });
+    expect(result.current.servicioEnVerificacionId).toBe(ID_ACTIVO);
+
+    await act(async () => {
+      result.current.marcarServicioFinalizado(ID_ACTIVO);
+    });
+    expect(result.current.servicioFinalizadoId).toBe(ID_ACTIVO);
+    expect(result.current.servicioEnVerificacionId).toBeNull();
+
+    // Un servicio ya confirmado no vuelve a entrar en verificación.
+    await act(async () => {
+      result.current.marcarServicioEnVerificacion(ID_ACTIVO);
+    });
+    expect(result.current.servicioEnVerificacionId).toBeNull();
+
+    await act(async () => {
+      result.current.limpiarServicioFinalizado();
+    });
+    expect(result.current.servicioFinalizadoId).toBeNull();
+  });
+
+  it('reconciliar conserva el éxito con null o el mismo id y lo limpia con otro id', async () => {
+    const { result } = await montar(servidor, sesion(CONDUCTOR_A, invalidar));
+    await act(async () => {
+      resolverPendientes();
+      await drenar();
+    });
+
+    await act(async () => {
+      result.current.marcarServicioFinalizado(ID_ACTIVO);
+    });
+
+    await reconciliarCon(result, null);
+    expect(result.current.servicioFinalizadoId).toBe(ID_ACTIVO);
+
+    await reconciliarCon(result, solicitud(CONDUCTOR_A));
+    expect(result.current.servicioFinalizadoId).toBe(ID_ACTIVO);
+
+    await reconciliarCon(result, { ...solicitud(CONDUCTOR_A), id: OTRO_ID });
+    expect(result.current.servicioFinalizadoId).toBeNull();
+  });
+
+  it('reconciliar conserva la verificación con null o el mismo id y la limpia con otro id', async () => {
+    const { result } = await montar(servidor, sesion(CONDUCTOR_A, invalidar));
+    await act(async () => {
+      resolverPendientes();
+      await drenar();
+    });
+
+    await act(async () => {
+      result.current.marcarServicioEnVerificacion(ID_ACTIVO);
+    });
+
+    await reconciliarCon(result, null);
+    expect(result.current.servicioEnVerificacionId).toBe(ID_ACTIVO);
+
+    await reconciliarCon(result, solicitud(CONDUCTOR_A));
+    expect(result.current.servicioEnVerificacionId).toBe(ID_ACTIVO);
+
+    await reconciliarCon(result, { ...solicitud(CONDUCTOR_A), id: OTRO_ID });
+    expect(result.current.servicioEnVerificacionId).toBeNull();
+  });
+
+  it('publica el conductor leído en queryKeys.conductor sin otra consulta', async () => {
+    await montar(servidor, sesion(CONDUCTOR_A, invalidar));
+    await act(async () => {
+      resolverPendientes();
+      await drenar();
+    });
+
+    expect(cliente.getQueryData(queryKeys.conductor(CONDUCTOR_A))).toEqual(perfil(CONDUCTOR_A));
+    expect(consultasSolicitudActiva).toBe(1);
+  });
+
+  it('una respuesta de una generación anterior no publica el perfil', async () => {
+    const { rerender, result } = await montarCompleto(
+      servidor,
+      sesion(CODIGO_CONDUCTOR_A, invalidar)
+    );
+    await waitFor(() => expect(result.current.conexion).toBe('conectado'));
+
+    await rerender({ sesion: sesion(CODIGO_CONDUCTOR_B, invalidar) });
+
+    await act(async () => {
+      resolverPendientes((url) => url.includes(CODIGO_CONDUCTOR_A));
+      await drenar();
+    });
+    expect(cliente.getQueryData(queryKeys.conductor(CODIGO_CONDUCTOR_A))).toBeUndefined();
+
+    await act(async () => {
+      resolverPendientes((url) => url.includes(CODIGO_CONDUCTOR_B));
+      await drenar();
+    });
+    expect(cliente.getQueryData(queryKeys.conductor(CODIGO_CONDUCTOR_B))).toEqual(
+      perfil(CODIGO_CONDUCTOR_B)
+    );
+  });
+
+  it('al cambiar de sesión se limpian ambos flags', async () => {
+    const { rerender, result } = await montarCompleto(
+      servidor,
+      sesion(CODIGO_CONDUCTOR_A, invalidar)
+    );
+    await waitFor(() => expect(result.current.conexion).toBe('conectado'));
+    await act(async () => {
+      resolverPendientes();
+      await drenar();
+    });
+
+    await act(async () => {
+      result.current.marcarServicioEnVerificacion(`solicitud-${CODIGO_CONDUCTOR_A}`);
+    });
+    expect(result.current.servicioEnVerificacionId).toBe(`solicitud-${CODIGO_CONDUCTOR_A}`);
+
+    await rerender({ sesion: sesion(CODIGO_CONDUCTOR_B, invalidar) });
+
+    expect(result.current.servicioFinalizadoId).toBeNull();
+    expect(result.current.servicioEnVerificacionId).toBeNull();
   });
 });
 

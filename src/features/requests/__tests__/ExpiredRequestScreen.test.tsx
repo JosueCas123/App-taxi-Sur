@@ -62,6 +62,12 @@ function eventos(parcial: Partial<UseDriverEventsResult> = {}): UseDriverEventsR
     fechaServidorSolicitud: null,
     ofertaDescartadaId: null,
     descartarOfertaVencida: jest.fn(),
+    servicioFinalizadoId: null,
+    servicioEnVerificacionId: null,
+    marcarServicioFinalizado: jest.fn(),
+    limpiarServicioFinalizado: jest.fn(),
+    marcarServicioEnVerificacion: jest.fn(),
+    limpiarServicioEnVerificacion: jest.fn(),
     ...parcial,
   };
 }

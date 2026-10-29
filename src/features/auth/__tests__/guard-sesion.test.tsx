@@ -28,6 +28,12 @@ function eventosPrueba(parcial: Partial<UseDriverEventsResult> = {}): UseDriverE
     fechaServidorSolicitud: null,
     ofertaDescartadaId: null,
     descartarOfertaVencida: () => {},
+    servicioFinalizadoId: null,
+    servicioEnVerificacionId: null,
+    marcarServicioFinalizado: () => {},
+    limpiarServicioFinalizado: () => {},
+    marcarServicioEnVerificacion: () => {},
+    limpiarServicioEnVerificacion: () => {},
     ...parcial,
   };
 }
@@ -394,6 +400,85 @@ describe('GuardRutaOperativa ((operacion))', () => {
     await waitFor(() =>
       expect(router.replace).toHaveBeenCalledWith('/(operacion)/solicitud-entrante')
     );
+  });
+
+  it('un éxito confirmado navega a servicio-finalizado', async () => {
+    mockPathname = '/inicio';
+    mockEstadoEvents = eventosPrueba({ servicioFinalizadoId: 'solicitud-1' });
+    fetchMock.mockResolvedValue(respuesta(perfil('aprobado')));
+    await montarOperativa();
+    expect(await screen.findByTestId('ruta-operativa')).toBeTruthy();
+    await waitFor(() =>
+      expect(router.replace).toHaveBeenCalledWith('/(operacion)/servicio-finalizado')
+    );
+  });
+
+  it('una verificación pendiente sin solicitud activa mantiene en-servicio a una cuenta suspendida', async () => {
+    mockPathname = '/inicio';
+    mockEstadoEvents = eventosPrueba({ servicioEnVerificacionId: 'solicitud-1' });
+    fetchMock.mockResolvedValue(respuesta(perfil('suspendido')));
+    await montarOperativa();
+    expect(await screen.findByTestId('ruta-operativa')).toBeTruthy();
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/(operacion)/en-servicio'));
+  });
+
+  it('una cuenta suspendida con el servicio ya finalizado conserva el éxito', async () => {
+    mockPathname = '/inicio';
+    mockEstadoEvents = eventosPrueba({
+      solicitudActiva: solicitud({ estado: 'en_servicio' }),
+      servicioConfirmado: {
+        id: 'solicitud-1',
+        conductorAsignadoId: 'conductor-a',
+        estado: 'en_servicio',
+      },
+      servicioFinalizadoId: 'solicitud-1',
+    });
+    fetchMock.mockResolvedValue(respuesta(perfil('suspendido')));
+    await montarOperativa();
+    expect(await screen.findByTestId('ruta-operativa')).toBeTruthy();
+    await waitFor(() =>
+      expect(router.replace).toHaveBeenCalledWith('/(operacion)/servicio-finalizado')
+    );
+  });
+
+  it('un servicio nuevo con otro UUID gana sobre el éxito anterior', async () => {
+    mockPathname = '/inicio';
+    mockEstadoEvents = eventosPrueba({
+      solicitudActiva: solicitud({ id: 'solicitud-2', estado: 'en_servicio' }),
+      servicioConfirmado: {
+        id: 'solicitud-2',
+        conductorAsignadoId: 'conductor-a',
+        estado: 'en_servicio',
+      },
+      servicioFinalizadoId: 'solicitud-1',
+    });
+    fetchMock.mockResolvedValue(respuesta(perfil('aprobado')));
+    await montarOperativa();
+    expect(await screen.findByTestId('ruta-operativa')).toBeTruthy();
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/(operacion)/en-servicio'));
+  });
+
+  it('una oferta nueva gana sobre el éxito anterior', async () => {
+    mockPathname = '/inicio';
+    mockEstadoEvents = eventosPrueba({
+      solicitudActiva: solicitud({ id: 'solicitud-2' }),
+      servicioFinalizadoId: 'solicitud-1',
+    });
+    fetchMock.mockResolvedValue(respuesta(perfil('aprobado')));
+    await montarOperativa();
+    expect(await screen.findByTestId('ruta-operativa')).toBeTruthy();
+    await waitFor(() =>
+      expect(router.replace).toHaveBeenCalledWith('/(operacion)/solicitud-entrante')
+    );
+  });
+
+  it('estando ya en servicio-finalizado con el mismo éxito no vuelve a navegar', async () => {
+    mockPathname = '/servicio-finalizado';
+    mockEstadoEvents = eventosPrueba({ servicioFinalizadoId: 'solicitud-1' });
+    fetchMock.mockResolvedValue(respuesta(perfil('aprobado')));
+    await montarOperativa();
+    expect(await screen.findByTestId('ruta-operativa')).toBeTruthy();
+    expect(router.replace).not.toHaveBeenCalled();
   });
 
   it('sin sesión no renderiza contenido operativo y el guard de sesión redirige', async () => {

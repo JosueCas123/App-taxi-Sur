@@ -24,6 +24,12 @@ function eventosPrueba(conexion: UseDriverEventsResult['conexion']): UseDriverEv
     fechaServidorSolicitud: null,
     ofertaDescartadaId: null,
     descartarOfertaVencida: () => {},
+    servicioFinalizadoId: null,
+    servicioEnVerificacionId: null,
+    marcarServicioFinalizado: () => {},
+    limpiarServicioFinalizado: () => {},
+    marcarServicioEnVerificacion: () => {},
+    limpiarServicioEnVerificacion: () => {},
   };
 }
 
